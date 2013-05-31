@@ -2,6 +2,7 @@ var Stage = classify('Stage', {
   property: {
     elem: null,
     d:    null,
+    shift_key: false,
     size: {},
     selected_nodes: null,
     nodes: []
@@ -11,8 +12,13 @@ var Stage = classify('Stage', {
       var self = this;
       this.elem = $(selector);
       this.elem.attr({tabindex: 0});
+      this.elem.css({outline: 'none'});
       this.elem.keydown(function(e) {
         self.keydown(e);
+        return false;
+      });
+      this.elem.keyup(function(e) {
+        self.keyup(e);
         return false;
       });
       this.d = new Fashion.Drawable(this.elem[0]);
@@ -23,7 +29,7 @@ var Stage = classify('Stage', {
       this.draw_background();
       this.d.addEvent({
         mouseup: function(e) {
-          self.unselect_all();
+          if (!self.shift_key) self.unselect_all();
         }
       });
       this.selected_nodes = new UniqueList();
@@ -45,7 +51,7 @@ var Stage = classify('Stage', {
       }
     },
     select: function(node) {
-      this.unselect_all();
+      if (!this.shift_key) this.unselect_all();
       this.selected_nodes.push(node);
       node.change({ zIndex: this.d.getMaxDepth() + 1 });
     },
@@ -63,13 +69,27 @@ var Stage = classify('Stage', {
       return this.d.viewportSize();
     },
     keydown: function(e) {
-      if (e.keyCode == 8) { // backspace
+      var c = e.keyCode;
+      switch (c) {
+      case 8: // backspace
         var ns = this.selected_nodes;
         ns.map(function(node, idx) {
           node.unselect(true);
           node.erase();
         });
         ns.clear();
+        break;
+      case 16: // shift
+        this.shift_key = true;
+        break;
+      }
+    },
+    keyup: function(e) {
+      var c = e.keyCode;
+      switch (c) {
+      case 16:
+        this.shift_key = false;
+        break;
       }
     },
     draw_background: function() {

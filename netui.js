@@ -249,23 +249,26 @@ var ElementBase = classify('ElementBase', {
     get_style: function(mode) {
       return (this.style && this.style[mode]) || this.__class__.style[mode];
     },
-    highlight: function(h) {
-      if (h) this.d.style(this.get_style('highlight'));
-      else   this.d.style(this.get_style('base'));
+    stylize: function(name) {
+      this.d.style(this.get_style(name));
     },
     select: function(ignore_report) {
       if (!this.selecting) {
         this.selecting = true;
-        this.highlight(true);
+        this.stylize('highlight');
+        if (!ignore_report) this.stage.select(this);
       }
-      if (!ignore_report) this.stage.select(this);
     },
     unselect: function(ignore_report) {
       if (this.selecting) {
-        this.highlight(false);
+        this.stylize('base');
         this.selecting = false;
+        if (!ignore_report) this.stage.unselect(this);
       }
-      if (!ignore_report) this.stage.unselect(this);
+    },
+    toggle_select: function(ignore_report) {
+      if (this.selecting) this.unselect(ignore_report);
+      else                this.select(ignore_report);
     },
     position: function() {
       return this.d.position();
@@ -304,6 +307,7 @@ var ElementBase = classify('ElementBase', {
     mousedown:      function(e) {},
     mouseup:        function(e) {},
     mousemove:      function(e) {},
+    mouseover:      function(e) {},
     mouseout:       function(e) {},
     drawed: function(stage) {
       var self = this;
@@ -343,6 +347,9 @@ var ElementBase = classify('ElementBase', {
           } else {
             self.mousemove(e);
           }
+        },
+        mouseover: function(e) {
+          if (!downing) self.mouseover(e);
         },
         mouseout: function(e) {
           if (!downing) self.mouseout(e);
@@ -437,16 +444,16 @@ var Pipe = classify('Pipe', {
       });
     },
     click: function(e) {
-      this.select();
+      this.toggle_select();
     },
-    mousemove: function(e) {
-      if (!this.selecting) this.d.style(this.get_style('hover'));
+    mouseover: function(e) {
+      if (!this.selecting) this.stylize('hover');
     },
     mouseout: function(e) {
-      if (!this.selecting) this.d.style(this.get_style('base'));
+      if (!this.selecting) this.stylize('base');
     },
     mouseup: function(e) {
-      if (!this.selecting) this.d.style(this.get_style('base'));
+      if (!this.selecting) this.stylize('base');
     },
     drag_start: function(e) {},
     drag:       function(e) {},
@@ -546,9 +553,9 @@ var Point = classify('Point', {
       return (t !== this && t.parent !== this.parent &&
               (!this.options.connect_filter || this.options.connect_filter(t)));
     },
-    mouseup:   function(e) { this.highlight(false); },
-    mousemove: function(e) { this.highlight(true);  },
-    mouseout:  function(e) { this.highlight(false); },
+    mouseup:   function(e) { this.stylize('base'); },
+    mouseover: function(e) { this.stylize('highlight');  },
+    mouseout:  function(e) { this.stylize('base'); },
     click:     function(e) { this.parent.click(e); },
     drag_start: function(e) {
       this.current_pipe = new Pipe(this, {
@@ -566,18 +573,16 @@ var Point = classify('Point', {
       var last_h = Point.last_hovering_points;
       var h = Point.x_positions.range_get(end.x - range, end.x + range);
       h = Point.y_positions.range_get(end.y - range, end.y + range, h);
-      for (var i=0, l=last_h.length; i<l; i++) {
-        last_h[i].highlight(false);
-      }
-      for (i=0, l=h.length; i<l; i++) {
-        if (this.connectable_p(h[i])) h[i].highlight(true);
+      for (var i=0, l=last_h.length; i<l; i++) last_h[i].stylize('base');
+      for (var i=0, l=h.length; i<l; i++) {
+        if (this.connectable_p(h[i])) h[i].stylize('highlight');
         else { h.splice(i, 1); --l; --i; }
       }
       Point.last_hovering_points = h;
     },
     drag_end: function(e) {
       var h = Point.last_hovering_points;
-      for (var i=0, l=h.length; i<l; i++) h[i].highlight(false);
+      for (var i=0, l=h.length; i<l; i++) h[i].stylize('base');
       if (h.length) {
         var target = h[0];
         target.children.push(this.current_pipe);
@@ -656,8 +661,7 @@ var Node = classify('Node', {
       return d;
     },
     click: function(e) {
-      if (!this.selecting) this.select();
-      else this.unselect();
+      this.toggle_select();
     },
     drag_start: function(e) {
       this.select();
@@ -675,19 +679,31 @@ var Node = classify('Node', {
         }
       });
     },
+    body_changed: function(data) {
+      var nx = (data) ? data.x : this.body.width();
+      var ny = (data) ? data.y : this.body.height();
+      this.change({
+        size: {
+          x: nx + (this.options.padding * 2),
+          y: ny + (this.options.padding * 2)
+        }
+      });
+      this.body_size.x = nx; this.body_size.y = ny;
+    },
     body_mouseup: function(e) {
       var s = this.body_size;
-      var nw = this.body.width(), nh = this.body.height();
-      if (s.x != nw || s.y != nh) {
-        this.change({
-          size: {
-            x: nw + (this.options.padding * 2),
-            y: nh + (this.options.padding * 2)
-          }
-        });
-        s.x = nw; s.y = nh;
-      }
+      var nx = this.body.width(), ny = this.body.height();
+      if (s.x != nx || s.y != ny) this.body_changed({x: nx, y: ny});
     },
+    mouseover: function(e) {
+      if (!this.selecting) this.stylize('hover');
+    },
+    mouseout: function(e) {
+      if (!this.selecting) this.stylize('base');
+    },
+    mouseup: function(e) {
+      if (!this.selecting) this.stylize('base');
+    }
   },
   after: {
     change: function(d) {
@@ -710,6 +726,7 @@ var Stage = classify('Stage', {
   property: {
     elem: null,
     d:    null,
+    shift_key: false,
     size: {},
     selected_nodes: null,
     nodes: []
@@ -719,8 +736,13 @@ var Stage = classify('Stage', {
       var self = this;
       this.elem = $(selector);
       this.elem.attr({tabindex: 0});
+      this.elem.css({outline: 'none'});
       this.elem.keydown(function(e) {
         self.keydown(e);
+        return false;
+      });
+      this.elem.keyup(function(e) {
+        self.keyup(e);
         return false;
       });
       this.d = new Fashion.Drawable(this.elem[0]);
@@ -731,7 +753,7 @@ var Stage = classify('Stage', {
       this.draw_background();
       this.d.addEvent({
         mouseup: function(e) {
-          self.unselect_all();
+          if (!self.shift_key) self.unselect_all();
         }
       });
       this.selected_nodes = new UniqueList();
@@ -753,7 +775,7 @@ var Stage = classify('Stage', {
       }
     },
     select: function(node) {
-      this.unselect_all();
+      if (!this.shift_key) this.unselect_all();
       this.selected_nodes.push(node);
       node.change({ zIndex: this.d.getMaxDepth() + 1 });
     },
@@ -771,13 +793,27 @@ var Stage = classify('Stage', {
       return this.d.viewportSize();
     },
     keydown: function(e) {
-      if (e.keyCode == 8) { // backspace
+      var c = e.keyCode;
+      switch (c) {
+      case 8: // backspace
         var ns = this.selected_nodes;
         ns.map(function(node, idx) {
           node.unselect(true);
           node.erase();
         });
         ns.clear();
+        break;
+      case 16: // shift
+        this.shift_key = true;
+        break;
+      }
+    },
+    keyup: function(e) {
+      var c = e.keyCode;
+      switch (c) {
+      case 16:
+        this.shift_key = false;
+        break;
       }
     },
     draw_background: function() {
@@ -833,51 +869,57 @@ var Stage = classify('Stage', {
   }
 
   var pipe_types = {};
-  NetUI.definePipeType = function(name, definition) {
+  NetUI.definePipeType = function(definitions) {
     function wrap(d) {
       return d ? { fill: null, stroke: d } : null;
     }
-    var style       = convert_fashion(definition.style);
-    style.base      = wrap(style.base);
-    style.hover     = wrap(style.hover) || style.base;
-    style.highlight = wrap(style.highlight) || style.base;
-    pipe_types[name] = { style: style };
-  }
+    for (var name in definitions) {
+      var definition  = definitions[name];
+      var style       = convert_fashion(definition.style);
+      style.base      = wrap(style.base);
+      style.hover     = wrap(style.hover) || style.base;
+      style.highlight = wrap(style.highlight) || style.base;
+      pipe_types[name] = { style: style };
+    }
+  };
 
   var point_types = {};
-  NetUI.definePointType = function(name, definition) {
-    point_types[name] = definition;
+  NetUI.definePointType = function(definitions) {
+    for (var name in definitions) {
+      var definition  = definitions[name];
+      point_types[name] = definition;
+    }
   };
 
   var node_types = {};
-  NetUI.defineNodeType = function(name, definition) {
-    var def = {};
+  NetUI.defineNodeType = function(definitions) {
     function wrap(d) {
       return d ? { fill:   d.fill ? d.fill : null,
                    stroke: d.stroke ? d.stroke : null } : null;
     }
-    var style = convert_fashion(definition.style);
-    style.base = wrap(style.base);
-    style.hover     = wrap(style.hover) || style.base;
-    style.highlight = wrap(style.highlight) || style.base;
-    def.style = style;
-
-    if (definition.body) {
-      def.body = definition.body;
-    } else if (definition.body_url) {
-      $.ajax({
-        url: definition.body_url,
-        type: 'get',
-      }).done(function(txt) {
-        def.body = txt;
-      });
-    } else {
-      def.body = '';
-    }
-
-    def.points = definition.points;
-
-    node_types[name] = def;
+    for (var name in definitions) (function(name) {
+      var definition  = definitions[name];
+      var def = {};
+      var style = convert_fashion(definition.style);
+      style.base = wrap(style.base);
+      style.hover     = wrap(style.hover) || style.base;
+      style.highlight = wrap(style.highlight) || style.base;
+      def.style = style;
+      if (definition.body) {
+        def.body = definition.body;
+      } else if (definition.body_url) {
+        $.ajax({
+          url: definition.body_url,
+          type: 'get',
+        }).done(function(txt) {
+          def.body = txt;
+        });
+      } else {
+        def.body = '';
+      }
+      def.points = definition.points;
+      node_types[name] = def;
+    })(name);
   };
 
   NetUI.createPoint = function(node, type, definition) {
@@ -902,7 +944,6 @@ var Stage = classify('Stage', {
   NetUI.createNode = function(stage, type, definition) {
     var vp = stage.viewport();
     var settings = node_types[type];
-    console.log(settings);
     var node = new NetUI.Node({
       stage: stage,
       unbind: function(itm) {}

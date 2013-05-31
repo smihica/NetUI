@@ -63,16 +63,16 @@ var Pipe = classify('Pipe', {
       });
     },
     click: function(e) {
-      this.select();
+      this.toggle_select();
     },
-    mousemove: function(e) {
-      if (!this.selecting) this.d.style(this.get_style('hover'));
+    mouseover: function(e) {
+      if (!this.selecting) this.stylize('hover');
     },
     mouseout: function(e) {
-      if (!this.selecting) this.d.style(this.get_style('base'));
+      if (!this.selecting) this.stylize('base');
     },
     mouseup: function(e) {
-      if (!this.selecting) this.d.style(this.get_style('base'));
+      if (!this.selecting) this.stylize('base');
     },
     drag_start: function(e) {},
     drag:       function(e) {},

@@ -21,23 +21,26 @@ var ElementBase = classify('ElementBase', {
     get_style: function(mode) {
       return (this.style && this.style[mode]) || this.__class__.style[mode];
     },
-    highlight: function(h) {
-      if (h) this.d.style(this.get_style('highlight'));
-      else   this.d.style(this.get_style('base'));
+    stylize: function(name) {
+      this.d.style(this.get_style(name));
     },
     select: function(ignore_report) {
       if (!this.selecting) {
         this.selecting = true;
-        this.highlight(true);
+        this.stylize('highlight');
+        if (!ignore_report) this.stage.select(this);
       }
-      if (!ignore_report) this.stage.select(this);
     },
     unselect: function(ignore_report) {
       if (this.selecting) {
-        this.highlight(false);
+        this.stylize('base');
         this.selecting = false;
+        if (!ignore_report) this.stage.unselect(this);
       }
-      if (!ignore_report) this.stage.unselect(this);
+    },
+    toggle_select: function(ignore_report) {
+      if (this.selecting) this.unselect(ignore_report);
+      else                this.select(ignore_report);
     },
     position: function() {
       return this.d.position();
@@ -76,6 +79,7 @@ var ElementBase = classify('ElementBase', {
     mousedown:      function(e) {},
     mouseup:        function(e) {},
     mousemove:      function(e) {},
+    mouseover:      function(e) {},
     mouseout:       function(e) {},
     drawed: function(stage) {
       var self = this;
@@ -115,6 +119,9 @@ var ElementBase = classify('ElementBase', {
           } else {
             self.mousemove(e);
           }
+        },
+        mouseover: function(e) {
+          if (!downing) self.mouseover(e);
         },
         mouseout: function(e) {
           if (!downing) self.mouseout(e);

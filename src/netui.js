@@ -30,51 +30,57 @@
   }
 
   var pipe_types = {};
-  NetUI.definePipeType = function(name, definition) {
+  NetUI.definePipeType = function(definitions) {
     function wrap(d) {
       return d ? { fill: null, stroke: d } : null;
     }
-    var style       = convert_fashion(definition.style);
-    style.base      = wrap(style.base);
-    style.hover     = wrap(style.hover) || style.base;
-    style.highlight = wrap(style.highlight) || style.base;
-    pipe_types[name] = { style: style };
-  }
+    for (var name in definitions) {
+      var definition  = definitions[name];
+      var style       = convert_fashion(definition.style);
+      style.base      = wrap(style.base);
+      style.hover     = wrap(style.hover) || style.base;
+      style.highlight = wrap(style.highlight) || style.base;
+      pipe_types[name] = { style: style };
+    }
+  };
 
   var point_types = {};
-  NetUI.definePointType = function(name, definition) {
-    point_types[name] = definition;
+  NetUI.definePointType = function(definitions) {
+    for (var name in definitions) {
+      var definition  = definitions[name];
+      point_types[name] = definition;
+    }
   };
 
   var node_types = {};
-  NetUI.defineNodeType = function(name, definition) {
-    var def = {};
+  NetUI.defineNodeType = function(definitions) {
     function wrap(d) {
       return d ? { fill:   d.fill ? d.fill : null,
                    stroke: d.stroke ? d.stroke : null } : null;
     }
-    var style = convert_fashion(definition.style);
-    style.base = wrap(style.base);
-    style.hover     = wrap(style.hover) || style.base;
-    style.highlight = wrap(style.highlight) || style.base;
-    def.style = style;
-
-    if (definition.body) {
-      def.body = definition.body;
-    } else if (definition.body_url) {
-      $.ajax({
-        url: definition.body_url,
-        type: 'get',
-      }).done(function(txt) {
-        def.body = txt;
-      });
-    } else {
-      def.body = '';
-    }
-
-    def.points = definition.points;
-
-    node_types[name] = def;
+    for (var name in definitions) (function(name) {
+      var definition  = definitions[name];
+      var def = {};
+      var style = convert_fashion(definition.style);
+      style.base = wrap(style.base);
+      style.hover     = wrap(style.hover) || style.base;
+      style.highlight = wrap(style.highlight) || style.base;
+      def.style = style;
+      if (definition.body) {
+        def.body = definition.body;
+      } else if (definition.body_url) {
+        $.ajax({
+          url: definition.body_url,
+          type: 'get',
+        }).done(function(txt) {
+          def.body = txt;
+        });
+      } else {
+        def.body = '';
+      }
+      def.points = definition.points;
+      node_types[name] = def;
+    })(name);
   };
 
   NetUI.createPoint = function(node, type, definition) {
@@ -99,7 +105,6 @@
   NetUI.createNode = function(stage, type, definition) {
     var vp = stage.viewport();
     var settings = node_types[type];
-    console.log(settings);
     var node = new NetUI.Node({
       stage: stage,
       unbind: function(itm) {}

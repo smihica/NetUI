@@ -64,8 +64,7 @@ var Node = classify('Node', {
       return d;
     },
     click: function(e) {
-      if (!this.selecting) this.select();
-      else this.unselect();
+      this.toggle_select();
     },
     drag_start: function(e) {
       this.select();
@@ -83,19 +82,31 @@ var Node = classify('Node', {
         }
       });
     },
+    body_changed: function(data) {
+      var nx = (data) ? data.x : this.body.width();
+      var ny = (data) ? data.y : this.body.height();
+      this.change({
+        size: {
+          x: nx + (this.options.padding * 2),
+          y: ny + (this.options.padding * 2)
+        }
+      });
+      this.body_size.x = nx; this.body_size.y = ny;
+    },
     body_mouseup: function(e) {
       var s = this.body_size;
-      var nw = this.body.width(), nh = this.body.height();
-      if (s.x != nw || s.y != nh) {
-        this.change({
-          size: {
-            x: nw + (this.options.padding * 2),
-            y: nh + (this.options.padding * 2)
-          }
-        });
-        s.x = nw; s.y = nh;
-      }
+      var nx = this.body.width(), ny = this.body.height();
+      if (s.x != nx || s.y != ny) this.body_changed({x: nx, y: ny});
     },
+    mouseover: function(e) {
+      if (!this.selecting) this.stylize('hover');
+    },
+    mouseout: function(e) {
+      if (!this.selecting) this.stylize('base');
+    },
+    mouseup: function(e) {
+      if (!this.selecting) this.stylize('base');
+    }
   },
   after: {
     change: function(d) {

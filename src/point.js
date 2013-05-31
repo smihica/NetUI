@@ -71,9 +71,9 @@ var Point = classify('Point', {
       return (t !== this && t.parent !== this.parent &&
               (!this.options.connect_filter || this.options.connect_filter(t)));
     },
-    mouseup:   function(e) { this.highlight(false); },
-    mousemove: function(e) { this.highlight(true);  },
-    mouseout:  function(e) { this.highlight(false); },
+    mouseup:   function(e) { this.stylize('base'); },
+    mouseover: function(e) { this.stylize('highlight');  },
+    mouseout:  function(e) { this.stylize('base'); },
     click:     function(e) { this.parent.click(e); },
     drag_start: function(e) {
       this.current_pipe = new Pipe(this, {
@@ -91,18 +91,16 @@ var Point = classify('Point', {
       var last_h = Point.last_hovering_points;
       var h = Point.x_positions.range_get(end.x - range, end.x + range);
       h = Point.y_positions.range_get(end.y - range, end.y + range, h);
-      for (var i=0, l=last_h.length; i<l; i++) {
-        last_h[i].highlight(false);
-      }
-      for (i=0, l=h.length; i<l; i++) {
-        if (this.connectable_p(h[i])) h[i].highlight(true);
+      for (var i=0, l=last_h.length; i<l; i++) last_h[i].stylize('base');
+      for (var i=0, l=h.length; i<l; i++) {
+        if (this.connectable_p(h[i])) h[i].stylize('highlight');
         else { h.splice(i, 1); --l; --i; }
       }
       Point.last_hovering_points = h;
     },
     drag_end: function(e) {
       var h = Point.last_hovering_points;
-      for (var i=0, l=h.length; i<l; i++) h[i].highlight(false);
+      for (var i=0, l=h.length; i<l; i++) h[i].stylize('base');
       if (h.length) {
         var target = h[0];
         target.children.push(this.current_pipe);
