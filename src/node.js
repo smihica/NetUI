@@ -15,7 +15,8 @@ var Node = classify('Node', {
   property: {
     offset_position_drag_start: { x: 0, y: 0 },
     body: null,
-    body_size: { x: 0, y: 0 }
+    body_size: { x: 0, y: 0 },
+    points: {},
   },
   method: {
     init: function(parent, options) {
@@ -23,11 +24,19 @@ var Node = classify('Node', {
       this.style = this.options.style;
       this.__super__().init.apply(this, arguments);
     },
-    add_point: function(options) {
-      return this.add_child(new Point(this, options));
+    add_point: function(name, options) {
+      var p = new Point(this, options);
+      p.name = name;
+      this.points[name] = p;
+      return this.add_child(p);
     },
     remove_point: function(p) {
+      var name = p.name;
+      if (name) delete this.points[name];
       this.remove_child(p);
+    },
+    get_point_by_name: function(name) {
+      return this.points[name];
     },
     make_instance: function(parent, options) {
       var shape = {
@@ -41,7 +50,7 @@ var Node = classify('Node', {
       if (options.body) {
         var self = this;
         var pos = options.position;
-        var window_pos = this.stage.elem.position();
+        var window_pos = this.stage.html.position();
         var body = $('<div/>', {id: "body_" + d.id});
         body.html(options.body);
         body.css({
@@ -106,13 +115,28 @@ var Node = classify('Node', {
     },
     mouseup: function(e) {
       if (!this.selecting) this.stylize('base');
+    },
+    dump: function() {
+      var points = {};
+      for (var n in this.points) {
+        var p = this.points[n];
+        points[n] = p.dump();
+      }
+      return {
+        selecting:  this.selecting,
+        type:       this.options.type,
+        position:   this.position(),
+        size:       this.options.size,
+        zIndex:     this.zIndex(),
+        points:     points
+      };
     }
   },
   after: {
     change: function(d) {
       if (d.position) {
         var pos = d.position;
-        var window_pos = this.stage.elem.position();
+        var window_pos = this.stage.html.position();
         this.body.css({
           left:     window_pos.left + pos.x + (this.options.padding || 0),
           top:      window_pos.top  + pos.y + (this.options.padding || 0)

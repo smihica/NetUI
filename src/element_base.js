@@ -24,11 +24,11 @@ var ElementBase = classify('ElementBase', {
     stylize: function(name) {
       this.d.style(this.get_style(name));
     },
-    select: function(ignore_report) {
+    select: function(ignore_report, fource) {
       if (!this.selecting) {
         this.selecting = true;
         this.stylize('highlight');
-        if (!ignore_report) this.stage.select(this);
+        if (!ignore_report) this.stage.select(this, fource);
       }
     },
     unselect: function(ignore_report) {

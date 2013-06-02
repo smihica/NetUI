@@ -1,8 +1,6 @@
 /** @file netui.js { */
 (function(window) {
 
-  var NetUI = {};
-
 /** @file util.js { */
 /** @file extend_classify.js { */
 // Generic definition of setter and getter.
@@ -252,11 +250,11 @@ var ElementBase = classify('ElementBase', {
     stylize: function(name) {
       this.d.style(this.get_style(name));
     },
-    select: function(ignore_report) {
+    select: function(ignore_report, fource) {
       if (!this.selecting) {
         this.selecting = true;
         this.stylize('highlight');
-        if (!ignore_report) this.stage.select(this);
+        if (!ignore_report) this.stage.select(this, fource);
       }
     },
     unselect: function(ignore_report) {
@@ -585,11 +583,61 @@ var Point = classify('Point', {
       for (var i=0, l=h.length; i<l; i++) h[i].stylize('base');
       if (h.length) {
         var target = h[0];
-        target.children.push(this.current_pipe);
-        this.current_pipe.reset_parent(this, h[0]);
+        this.connect(target, this.current_pipe);
       } else {
         this.children.pop();
         this.current_pipe.erase();
+      }
+    },
+    connect: function(point, pipe) {
+      point.children.push(pipe);
+      pipe.reset_parent(this, point);
+    },
+    connecting_points: function() {
+      var rt = [];
+      for (var i=0, l=this.children.length; i<l; i++) {
+        for (var j=0; j<2; j++) {
+          var p = this.children[i].parents[j];
+          if (p && p !== this) rt.push(p);
+        }
+      }
+      return rt;
+    },
+    dump: function() {
+      var connections = [];
+      var pts = this.connecting_points();
+      var my_idx = this.stage.get_elem_index(this, NetUI.Node);
+      for (var i=0, l=pts.length; i<l; i++) {
+        var p = pts[i];
+        var node_idx = this.stage.get_elem_index(p.parent, NetUI.Node);
+        if (node_idx < my_idx)
+          connections.push([node_idx, p.name]);
+      }
+      return {
+        type:     this.options.type,
+        position: {
+          origin: this.options.origin,
+          offset: this.options.offset
+        },
+        connections: connections,
+      }
+    }
+  },
+  after: {
+    init: function(parent, options) {
+      var cs = options.connections;
+      if (cs) {
+        for (var i=0, l=cs.length; i<l; i++) {
+          var c = cs[i];
+          var node_idx = c[0], name = c[1];
+          var node = this.stage.get_elem_by_index(node_idx, NetUI.Node);
+          var point = node.get_point_by_name(name);
+          var pipe  = new Pipe(this, {
+            style: this.options.pipe_style
+          });
+          this.children.push(pipe);
+          this.connect(point, pipe);
+        }
       }
     }
   }
@@ -612,7 +660,8 @@ var Node = classify('Node', {
   property: {
     offset_position_drag_start: { x: 0, y: 0 },
     body: null,
-    body_size: { x: 0, y: 0 }
+    body_size: { x: 0, y: 0 },
+    points: {},
   },
   method: {
     init: function(parent, options) {
@@ -620,11 +669,19 @@ var Node = classify('Node', {
       this.style = this.options.style;
       this.__super__().init.apply(this, arguments);
     },
-    add_point: function(options) {
-      return this.add_child(new Point(this, options));
+    add_point: function(name, options) {
+      var p = new Point(this, options);
+      p.name = name;
+      this.points[name] = p;
+      return this.add_child(p);
     },
     remove_point: function(p) {
+      var name = p.name;
+      if (name) delete this.points[name];
       this.remove_child(p);
+    },
+    get_point_by_name: function(name) {
+      return this.points[name];
     },
     make_instance: function(parent, options) {
       var shape = {
@@ -638,7 +695,7 @@ var Node = classify('Node', {
       if (options.body) {
         var self = this;
         var pos = options.position;
-        var window_pos = this.stage.elem.position();
+        var window_pos = this.stage.html.position();
         var body = $('<div/>', {id: "body_" + d.id});
         body.html(options.body);
         body.css({
@@ -703,13 +760,28 @@ var Node = classify('Node', {
     },
     mouseup: function(e) {
       if (!this.selecting) this.stylize('base');
+    },
+    dump: function() {
+      var points = {};
+      for (var n in this.points) {
+        var p = this.points[n];
+        points[n] = p.dump();
+      }
+      return {
+        selecting:  this.selecting,
+        type:       this.options.type,
+        position:   this.position(),
+        size:       this.options.size,
+        zIndex:     this.zIndex(),
+        points:     points
+      };
     }
   },
   after: {
     change: function(d) {
       if (d.position) {
         var pos = d.position;
-        var window_pos = this.stage.elem.position();
+        var window_pos = this.stage.html.position();
         this.body.css({
           left:     window_pos.left + pos.x + (this.options.padding || 0),
           top:      window_pos.top  + pos.y + (this.options.padding || 0)
@@ -728,27 +800,27 @@ var Stage = classify('Stage', {
     d:    null,
     shift_key: false,
     size: {},
-    selected_nodes: null,
-    nodes: []
+    selected_elems: null,
+    elems: []
   },
   method: {
     init: function(selector) {
       var self = this;
-      this.elem = $(selector);
-      this.elem.attr({tabindex: 0});
-      this.elem.css({outline: 'none'});
-      this.elem.keydown(function(e) {
+      this.html = $(selector);
+      this.html.attr({tabindex: 0});
+      this.html.css({outline: 'none'});
+      this.html.keydown(function(e) {
         self.keydown(e);
         return false;
       });
-      this.elem.keyup(function(e) {
+      this.html.keyup(function(e) {
         self.keyup(e);
         return false;
       });
-      this.d = new Fashion.Drawable(this.elem[0]);
+      this.d = new Fashion.Drawable(this.html[0]);
       this.size = {
-        x: this.elem.width(),
-        y: this.elem.height()
+        x: this.html.width(),
+        y: this.html.height()
       };
       this.draw_background();
       this.d.addEvent({
@@ -756,36 +828,72 @@ var Stage = classify('Stage', {
           if (!self.shift_key) self.unselect_all();
         }
       });
-      this.selected_nodes = new UniqueList();
+      this.selected_elems = new UniqueList();
     },
-    draw: function(node) {
-      this.d.draw(node.d);
-      this.nodes.push(node);
-      node.drawed(this);
+    draw: function(elem) {
+      this.d.draw(elem.d);
+      this.elems.push(elem);
+      elem.drawed(this);
     },
-    erase: function(node) {
-      this.d.erase(node.d);
-      var idx = this.nodes.indexOf(node);
-      if (-1 < idx) this.nodes.splice(idx, 1);
-      node.erased(this);
+    erase: function(elem) {
+      this.d.erase(elem.d);
+      var idx = this.elems.indexOf(elem);
+      if (-1 < idx) this.elems.splice(idx, 1);
+      elem.erased(this);
     },
-    select_all: function() {
-      for (var i = 0, l = this.nodes.lenght; i<l; i++) {
-        this.nodes[i].select();
+    clear: function() {
+      this.unselect_all();
+      while (this.elems.length) {
+        this.elems[0].erase();
       }
     },
-    select: function(node) {
-      if (!this.shift_key) this.unselect_all();
-      this.selected_nodes.push(node);
-      node.change({ zIndex: this.d.getMaxDepth() + 1 });
+    get_elem_index: function(elem, filter_class) {
+      var idx = 0;
+      if (filter_class) {
+        for (var i=0, l=this.elems.length; i<l; i++) {
+          var n = this.elems[i];
+          if (n === elem) break;
+          if (n instanceof filter_class) idx++;
+        }
+        if (i == l) idx = -1;
+      } else {
+        idx = this.elems.indexOf(elem);
+      }
+      return idx;
     },
-    unselect: function(node) {
-      this.selected_nodes.pop(node);
+    get_elem_by_index: function(idx, filter_class) {
+      var iter = 0;
+      if (filter_class) {
+        for (var i=0, l=this.elems.length; i<l; i++) {
+          var n = this.elems[i];
+          if (n instanceof filter_class) {
+            if (iter === idx) return n;
+            iter++;
+          }
+        }
+      } else {
+        return this.elems[idx];
+      }
+      return null;
+    },
+    select_all: function() {
+      for (var i = 0, l = this.elems.length; i<l; i++) {
+        this.elems[i].select(true);
+        this.selected_elems.push(this.elems[i]);
+      }
+    },
+    select: function(elem, fource) {
+      if (!this.shift_key && !fource) this.unselect_all();
+      this.selected_elems.push(elem);
+      elem.change({ zIndex: this.d.getMaxDepth() + 1 });
+    },
+    unselect: function(elem) {
+      this.selected_elems.pop(elem);
     },
     unselect_all: function() {
-      var ns = this.selected_nodes;
-      ns.map(function(node, idx) {
-        node.unselect(true);
+      var ns = this.selected_elems;
+      ns.map(function(elem, idx) {
+        elem.unselect(true);
       });
       ns.clear();
     },
@@ -796,10 +904,10 @@ var Stage = classify('Stage', {
       var c = e.keyCode;
       switch (c) {
       case 8: // backspace
-        var ns = this.selected_nodes;
-        ns.map(function(node, idx) {
-          node.unselect(true);
-          node.erase();
+        var ns = this.selected_elems;
+        ns.map(function(elem, idx) {
+          elem.unselect(true);
+          elem.erase();
         });
         ns.clear();
         break;
@@ -848,118 +956,206 @@ var Stage = classify('Stage', {
   }
 });/** @} */
 
-  NetUI.Pipe  = Pipe;
-  NetUI.Point = Point;
-  NetUI.Node  = Node;
-  NetUI.Stage = Stage;
+  var NetUI = classify('NetUI', {
+    static: {
+      Pipe:  Pipe,
+      Point: Point,
+      Node:  Node,
+      Stage: Stage,
 
-  function convert_fashion(def) {
-    if (!(typeof def == 'object' && def.constructor == Object)) return def;
-    var rt = {};
-    for (var i in def) {
-      if (i === 'color') {
-        rt[i] = new Fashion.Color(def[i]);
-      } else if (i === 'fill') {
-        rt[i] = new Fashion.FloodFill(new Fashion.Color(def[i]));
-      } else {
-        rt[i] = convert_fashion(def[i]);
-      }
-    }
-    return rt;
-  }
-
-  var pipe_types = {};
-  NetUI.definePipeType = function(definitions) {
-    function wrap(d) {
-      return d ? { fill: null, stroke: d } : null;
-    }
-    for (var name in definitions) {
-      var definition  = definitions[name];
-      var style       = convert_fashion(definition.style);
-      style.base      = wrap(style.base);
-      style.hover     = wrap(style.hover) || style.base;
-      style.highlight = wrap(style.highlight) || style.base;
-      pipe_types[name] = { style: style };
-    }
-  };
-
-  var point_types = {};
-  NetUI.definePointType = function(definitions) {
-    for (var name in definitions) {
-      var definition  = definitions[name];
-      point_types[name] = definition;
-    }
-  };
-
-  var node_types = {};
-  NetUI.defineNodeType = function(definitions) {
-    function wrap(d) {
-      return d ? { fill:   d.fill ? d.fill : null,
-                   stroke: d.stroke ? d.stroke : null } : null;
-    }
-    for (var name in definitions) (function(name) {
-      var definition  = definitions[name];
-      var def = {};
-      var style = convert_fashion(definition.style);
-      style.base = wrap(style.base);
-      style.hover     = wrap(style.hover) || style.base;
-      style.highlight = wrap(style.highlight) || style.base;
-      def.style = style;
-      if (definition.body) {
-        def.body = definition.body;
-      } else if (definition.body_url) {
-        $.ajax({
-          url: definition.body_url,
-          type: 'get',
-        }).done(function(txt) {
-          def.body = txt;
+      types: {
+        pipe:  {},
+        point: {},
+        node:  {}
+      },
+      type_definitions: {
+        pipe:  {},
+        point: {},
+        node:  {}
+      },
+      _convert_fashion: function (def) {
+        if (!(typeof def == 'object' && def.constructor == Object)) return def;
+        var rt = {};
+        for (var i in def) {
+          if (i === 'color') {
+            rt[i] = new Fashion.Color(def[i]);
+          } else if (i === 'fill') {
+            rt[i] = new Fashion.FloodFill(new Fashion.Color(def[i]));
+          } else {
+            rt[i] = this._convert_fashion(def[i]);
+          }
+        }
+        return rt;
+      },
+      definePipeType: function (definitions) {
+        function wrap(d) {
+          return d ? { fill: null, stroke: d } : null;
+        }
+        for (var name in definitions) {
+          var definition  = definitions[name];
+          this.type_definitions.pipe[name] = definition;
+          var style       = this._convert_fashion(definition.style);
+          style.base      = wrap(style.base);
+          style.hover     = wrap(style.hover) || style.base;
+          style.highlight = wrap(style.highlight) || style.base;
+          this.types.pipe[name] = { style: style };
+        }
+      },
+      definePointType: function (definitions) {
+        for (var name in definitions) {
+          var definition  = definitions[name];
+          this.type_definitions.point[name] = definition;
+          this.types.point[name] = definition;
+        }
+      },
+      defineNodeType: function (definitions, onDefinitionFinished) {
+        var self = this;
+        function wrap(d) {
+          return d ? { fill:   d.fill ? d.fill : null,
+                       stroke: d.stroke ? d.stroke : null } : null;
+        }
+        var names = [];
+        var notify = function(name) {
+          names.splice(names.indexOf(name), 1);
+          if (names.length == 0 && onDefinitionFinished)
+            onDefinitionFinished();
+        };
+        for (var name in definitions) (function(name) {
+          names.push(name);
+          var definition  = definitions[name];
+          self.type_definitions.node[name] = definition;
+          var def = {};
+          var style = self._convert_fashion(definition.style);
+          style.base = wrap(style.base);
+          style.hover     = wrap(style.hover) || style.base;
+          style.highlight = wrap(style.highlight) || style.base;
+          def.style = style;
+          if (definition.body) {
+            def.body = definition.body;
+          } else if (definition.body_url) {
+            $.ajax({
+              url: definition.body_url,
+              type: 'get',
+            }).done(function(txt) {
+              def.body = txt;
+              notify(name);
+            });
+          } else {
+            def.body = '';
+          }
+          def.points = definition.points;
+          self.types.node[name] = def;
+        })(name);
+      },
+      createPoint: function (node, name, type, definition) {
+        var d = definition;
+        var _default = this.types.point[type];
+        var origin = (d && d.position && d.position.origin) || 'left-top';
+        var offset = (d && d.position && d.position.offset) || {x: 10, y: 10};
+        var radius = 4;
+        var pipe_style = this.types.pipe[_default.pipe].style;
+        var connect_filter = function(pt) {
+          return -1 < _default.connectable.indexOf(pt.options.type);
+        };
+        node.add_point(name, {
+          origin: origin,
+          offset: offset,
+          radius: radius,
+          pipe_style: pipe_style,
+          connect_filter: connect_filter,
+          connections: d.connections || [],
+          type: type
         });
-      } else {
-        def.body = '';
+      },
+      createNode: function (stage, type, definition) {
+        var d = definition;
+        var vp = stage.viewport();
+        var settings = this.types.node[type];
+        var node = new this.Node({
+          stage: stage,
+          unbind: function(itm) {}
+        }, {
+          position: (d && d.position) || { x: (vp.x / 2) - 50, y: (vp.y / 2) - 50},
+          size:     (d && d.size)     || 'auto',
+          zIndex:   (d && d.zIndex)   || stage.d.getMaxDepth() + 1,
+          body:     settings.body,
+          padding:  20,
+          style:    settings.style,
+          type:     type
+        });
+        if (d && d.points) {
+          for (var name in d.points) {
+            var p = d.points[name];
+            this.createPoint(node, name, p.type, p);
+          }
+        } else {
+          for (var name in settings.points) {
+            var p = settings.points[name];
+            this.createPoint(node, name, p.type, p);
+          }
+        }
+        if (d && d.selecting) node.select(false, true);
+      },
+      dump: function(stage, pretty) {
+        for (var i=0, l=stage.elems.length, nodes = []; i<l; i++) {
+          var n = stage.elems[i];
+          if (n instanceof Node) nodes.push(n.dump());
+        }
+        var rt = {
+          nodes: nodes,
+          types: this.type_definitions,
+        };
+        if (pretty) {
+          return JSON.stringify(rt, null, pretty);
+        }
+        return JSON.stringify(rt);
+      },
+      load: function(stage, data, with_clear) {
+        if (with_clear) {
+          stage.clear();
+          this.type_definitions = {
+            pipe:  {},
+            point: {},
+            node:  {}
+          };
+        }
+        var data = JSON.parse(data);
+        function define_types() {
+          if (stage) {
+            var types = data['types'];
+            for (var t in types) {
+              var type = types[t];
+              switch (t) {
+              case 'pipe':
+                NetUI.definePipeType(type);
+                break;
+              case 'point':
+                NetUI.definePointType(type);
+                break;
+              case 'node':
+                NetUI.defineNodeType(type, create_nodes);
+                break;
+              }
+            }
+          }
+        }
+        function create_nodes() {
+          var nodes = data['nodes'];
+          for (var i=0,l=nodes.length; i<l; i++) {
+            var node = nodes[i];
+            NetUI.createNode(stage, node.type, {
+              position:  node.position,
+              size:      node.size,
+              zIndex:    node.zIndex,
+              selecting: node.selecting,
+              points:    node.points
+            });
+          }
+        }
+        define_types();
       }
-      def.points = definition.points;
-      node_types[name] = def;
-    })(name);
-  };
-
-  NetUI.createPoint = function(node, type, definition) {
-    var _default = point_types[type];
-    var origin = (definition && definition.position && definition.position.origin) || 'left-top';
-    var offset = (definition && definition.position && definition.position.offset) || {x: 10, y: 10};
-    var radius = 4;
-    var pipe_style = pipe_types[_default.pipe].style;
-    var connect_filter = function(pt) {
-      return -1 < _default.connectable.indexOf(pt.options.type);
-    };
-    node.add_point({
-      origin: origin,
-      offset: offset,
-      radius: radius,
-      pipe_style: pipe_style,
-      connect_filter: connect_filter,
-      type: type
-    });
-  };
-
-  NetUI.createNode = function(stage, type, definition) {
-    var vp = stage.viewport();
-    var settings = node_types[type];
-    var node = new NetUI.Node({
-      stage: stage,
-      unbind: function(itm) {}
-    }, {
-      position: (definition && definition.position) || { x: (vp.x / 2) - 50, y: (vp.y / 2) - 50},
-      size:     (definition && definition.size) || 'auto',
-      zIndex:   stage.d.getMaxDepth() + 1,
-      body:     settings.body,
-      padding:  20,
-      style:    settings.style
-    });
-    for (var i = 0, l = settings.points.length; i<l; i++) {
-      var p = settings.points[i];
-      NetUI.createPoint(node, p.type, p);
     }
-  };
+  });
 
   window.NetUI = NetUI;
 

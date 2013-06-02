@@ -4,27 +4,27 @@ var Stage = classify('Stage', {
     d:    null,
     shift_key: false,
     size: {},
-    selected_nodes: null,
-    nodes: []
+    selected_elems: null,
+    elems: []
   },
   method: {
     init: function(selector) {
       var self = this;
-      this.elem = $(selector);
-      this.elem.attr({tabindex: 0});
-      this.elem.css({outline: 'none'});
-      this.elem.keydown(function(e) {
+      this.html = $(selector);
+      this.html.attr({tabindex: 0});
+      this.html.css({outline: 'none'});
+      this.html.keydown(function(e) {
         self.keydown(e);
         return false;
       });
-      this.elem.keyup(function(e) {
+      this.html.keyup(function(e) {
         self.keyup(e);
         return false;
       });
-      this.d = new Fashion.Drawable(this.elem[0]);
+      this.d = new Fashion.Drawable(this.html[0]);
       this.size = {
-        x: this.elem.width(),
-        y: this.elem.height()
+        x: this.html.width(),
+        y: this.html.height()
       };
       this.draw_background();
       this.d.addEvent({
@@ -32,36 +32,72 @@ var Stage = classify('Stage', {
           if (!self.shift_key) self.unselect_all();
         }
       });
-      this.selected_nodes = new UniqueList();
+      this.selected_elems = new UniqueList();
     },
-    draw: function(node) {
-      this.d.draw(node.d);
-      this.nodes.push(node);
-      node.drawed(this);
+    draw: function(elem) {
+      this.d.draw(elem.d);
+      this.elems.push(elem);
+      elem.drawed(this);
     },
-    erase: function(node) {
-      this.d.erase(node.d);
-      var idx = this.nodes.indexOf(node);
-      if (-1 < idx) this.nodes.splice(idx, 1);
-      node.erased(this);
+    erase: function(elem) {
+      this.d.erase(elem.d);
+      var idx = this.elems.indexOf(elem);
+      if (-1 < idx) this.elems.splice(idx, 1);
+      elem.erased(this);
     },
-    select_all: function() {
-      for (var i = 0, l = this.nodes.lenght; i<l; i++) {
-        this.nodes[i].select();
+    clear: function() {
+      this.unselect_all();
+      while (this.elems.length) {
+        this.elems[0].erase();
       }
     },
-    select: function(node) {
-      if (!this.shift_key) this.unselect_all();
-      this.selected_nodes.push(node);
-      node.change({ zIndex: this.d.getMaxDepth() + 1 });
+    get_elem_index: function(elem, filter_class) {
+      var idx = 0;
+      if (filter_class) {
+        for (var i=0, l=this.elems.length; i<l; i++) {
+          var n = this.elems[i];
+          if (n === elem) break;
+          if (n instanceof filter_class) idx++;
+        }
+        if (i == l) idx = -1;
+      } else {
+        idx = this.elems.indexOf(elem);
+      }
+      return idx;
     },
-    unselect: function(node) {
-      this.selected_nodes.pop(node);
+    get_elem_by_index: function(idx, filter_class) {
+      var iter = 0;
+      if (filter_class) {
+        for (var i=0, l=this.elems.length; i<l; i++) {
+          var n = this.elems[i];
+          if (n instanceof filter_class) {
+            if (iter === idx) return n;
+            iter++;
+          }
+        }
+      } else {
+        return this.elems[idx];
+      }
+      return null;
+    },
+    select_all: function() {
+      for (var i = 0, l = this.elems.length; i<l; i++) {
+        this.elems[i].select(true);
+        this.selected_elems.push(this.elems[i]);
+      }
+    },
+    select: function(elem, fource) {
+      if (!this.shift_key && !fource) this.unselect_all();
+      this.selected_elems.push(elem);
+      elem.change({ zIndex: this.d.getMaxDepth() + 1 });
+    },
+    unselect: function(elem) {
+      this.selected_elems.pop(elem);
     },
     unselect_all: function() {
-      var ns = this.selected_nodes;
-      ns.map(function(node, idx) {
-        node.unselect(true);
+      var ns = this.selected_elems;
+      ns.map(function(elem, idx) {
+        elem.unselect(true);
       });
       ns.clear();
     },
@@ -72,10 +108,10 @@ var Stage = classify('Stage', {
       var c = e.keyCode;
       switch (c) {
       case 8: // backspace
-        var ns = this.selected_nodes;
-        ns.map(function(node, idx) {
-          node.unselect(true);
-          node.erase();
+        var ns = this.selected_elems;
+        ns.map(function(elem, idx) {
+          elem.unselect(true);
+          elem.erase();
         });
         ns.clear();
         break;

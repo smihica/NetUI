@@ -103,11 +103,61 @@ var Point = classify('Point', {
       for (var i=0, l=h.length; i<l; i++) h[i].stylize('base');
       if (h.length) {
         var target = h[0];
-        target.children.push(this.current_pipe);
-        this.current_pipe.reset_parent(this, h[0]);
+        this.connect(target, this.current_pipe);
       } else {
         this.children.pop();
         this.current_pipe.erase();
+      }
+    },
+    connect: function(point, pipe) {
+      point.children.push(pipe);
+      pipe.reset_parent(this, point);
+    },
+    connecting_points: function() {
+      var rt = [];
+      for (var i=0, l=this.children.length; i<l; i++) {
+        for (var j=0; j<2; j++) {
+          var p = this.children[i].parents[j];
+          if (p && p !== this) rt.push(p);
+        }
+      }
+      return rt;
+    },
+    dump: function() {
+      var connections = [];
+      var pts = this.connecting_points();
+      var my_idx = this.stage.get_elem_index(this, NetUI.Node);
+      for (var i=0, l=pts.length; i<l; i++) {
+        var p = pts[i];
+        var node_idx = this.stage.get_elem_index(p.parent, NetUI.Node);
+        if (node_idx < my_idx)
+          connections.push([node_idx, p.name]);
+      }
+      return {
+        type:     this.options.type,
+        position: {
+          origin: this.options.origin,
+          offset: this.options.offset
+        },
+        connections: connections,
+      }
+    }
+  },
+  after: {
+    init: function(parent, options) {
+      var cs = options.connections;
+      if (cs) {
+        for (var i=0, l=cs.length; i<l; i++) {
+          var c = cs[i];
+          var node_idx = c[0], name = c[1];
+          var node = this.stage.get_elem_by_index(node_idx, NetUI.Node);
+          var point = node.get_point_by_name(name);
+          var pipe  = new Pipe(this, {
+            style: this.options.pipe_style
+          });
+          this.children.push(pipe);
+          this.connect(point, pipe);
+        }
       }
     }
   }
