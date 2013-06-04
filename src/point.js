@@ -7,17 +7,24 @@ var Point = classify('Point', {
     y_positions: SortedList(),
     style: {
       base: {
-        stroke: {width: 1, color: new Fashion.Color('#000')},
-        fill:   new Fashion.FloodFill(new Fashion.Color('#FFF')),
+        stroke: {width: 1, color: _fashion_color('#000')},
+        fill:   _fashion_fill('#FFF'),
         cursor: 'pointer'
       },
       highlight: {
-        stroke: {width: 3, color: new Fashion.Color('#FF0')},
-        fill:   new Fashion.FloodFill(new Fashion.Color('#F00')),
+        stroke: {width: 3, color: _fashion_color('#FF0')},
+        fill:   _fashion_fill('#F00'),
         cursor: 'pointer'
-      }
+      },
+      color: _fashion_color('#000')
     },
-    last_hovering_points: []
+    last_hovering_points: [],
+    fontSize: 13,
+    fontFamily: 'Arial',
+    fontOpacity: {
+      select: 255,
+      free:   160
+    }
   },
   property: {
     d:      null,
@@ -25,10 +32,14 @@ var Point = classify('Point', {
     options:  null,
     offset_position_drag_start: {x: 0, y: 0},
     last_pos: { x: 0, y: 0 },
-    current_pipe: null
+    current_pipe: null,
+    text: null,
+    text_offset: { x: 0, y: 0 },
+    name: ''
   },
   method: {
-    init: function(parent, options) {
+    init: function(parent, options, name) {
+      this.name = name;
       this.options = options;
       this.__super__().init.apply(this, arguments);
       var id = this.d.id;
@@ -48,7 +59,7 @@ var Point = classify('Point', {
       var o = origin.split('-');
       return {
         x: p.x + (o[0] === 'left' ? 0 : s.x),
-        y: p.y + (o[1] === 'top'  ? 0 : s.y)
+        y: p.y + (o[1] === 'top'  ? Node.header.height : s.y)
       };
     },
     parent_changed: function() {
@@ -57,7 +68,7 @@ var Point = classify('Point', {
       var offset = this.options.offset;
       var pos = {
         x: (origin.x + (Math.abs(offset.x) < 1 ? offset.x * s.x : offset.x)) - this.options.radius,
-        y: (origin.y + (Math.abs(offset.y) < 1 ? offset.y * s.y : offset.y)) - this.options.radius
+        y: (origin.y + (Math.abs(offset.y) < 1 ? offset.y * ( s.y - Node.header.height) : offset.y)) - this.options.radius
       };
       Point.x_positions.replace(this.last_pos.x, this, pos.x, true);
       Point.y_positions.replace(this.last_pos.y, this, pos.y, true);
@@ -133,18 +144,92 @@ var Point = classify('Point', {
         if (backref_p || node_idx < my_idx)
           connections.push([node_idx, p.name]);
       }
+      var set_color = (typeof this.options.color == 'string') ? this.options.color : void(0);
       return {
+        label:    (!!this.options.label),
         type:     this.options.type,
         position: {
           origin: this.options.origin,
           offset: this.options.offset
         },
         connections: connections,
+        color:    set_color
+      };
+    },
+    on_parent_select: function() {
+      if (this.text) {
+        var fill = this.text.style().fill;
+        fill.color.a = Point.fontOpacity.select;
+        this.text.style({fill: fill});
       }
+    },
+    on_parent_unselect: function() {
+      if (this.text) {
+        var fill = this.text.style().fill;
+        fill.color.a = Point.fontOpacity.free;
+        this.text.style({fill: fill});
+      }
+    },
+    _get_labels_anchor_position: function() {
+      var pp = this.parent.position();
+      var ps = this.parent.size();
+      var p  = this.center();
+      var offset = {
+        x: ((p.x - pp.x) / ps.x),
+        y: ((p.y - (pp.y + Node.header.height)) / (ps.y - Node.header.height))
+      };
+      var a, o;
+      if (0.8 < offset.x) {
+        a = 'right'; o = { x: -7, y: 3.5 };
+      } else if (offset.y < 0.3) {
+        a = 'center'; o = { x: 0, y: 18 };
+      } else if (0.7 < offset.y) {
+        a = 'center'; o = { x: 0, y: -10 };
+      } else {
+        a = 'left'; o = { x: 8, y: 3.5 };
+      }
+      return { anchor: a, offset: o };
+    }
+  },
+  before: {
+    drawed: function() {
+      if (this.options.label) {
+        var p = this.center();
+        var z = this.zIndex();
+        var ap = this._get_labels_anchor_position();
+        var t = new Fashion.Text({
+          anchor: ap.anchor,
+          position: { x: p.x + ap.offset.x, y: p.y + ap.offset.y },
+          text: this.name,
+          fontFamily: Point.fontFamily,
+          fontSize:   Point.fontSize,
+          zIndex: z
+        });
+        t.style({fill: _fashion_fill(this.options.color || Point.style.color)});
+        this.stage.d.draw(t);
+        this.text = t;
+        this.text_offset = ap.offset;
+      }
+    },
+    erase: function() {
+      if (this.text) this.stage.d.erase(this.text);
     }
   },
   after: {
-    init: function(parent, options) {
+    change: function() {
+      if (this.text) {
+        var p = this.center();
+        this.text.position({
+          x: p.x + this.text_offset.x,
+          y: p.y + this.text_offset.y
+        });
+        this.text.zIndex(this.zIndex());
+      }
+    },
+    select: function() {
+      if (this.text) this.text.zIndex(this.zIndex());
+    },
+    init: function(parent, options, name) {
       var cs = options.connections;
       if (cs) {
         for (var i=0, l=cs.length; i<l; i++) {

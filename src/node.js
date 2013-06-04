@@ -4,19 +4,28 @@ var Node = classify('Node', {
     style: {
       base: {
         stroke: null,
-        fill:   new Fashion.FloodFill(new Fashion.Color('#CCC')),
+        fill:   _fashion_fill('#CCC'),
       },
       highlight: {
-        stroke: { width: 5, color: new Fashion.Color('#FC0') },
-        fill:   new Fashion.FloodFill(new Fashion.Color('#EEE'))
-      }
-    }
+        stroke: { width: 5, color: _fashion_color('#FC0') },
+        fill:   _fashion_fill('#EEE')
+      },
+      color: _fashion_color('#000')
+    },
+    header: {
+      height:     25,
+      fontFamily: 'Arial',
+      fontSize:   16,
+      offset:     { x: 18, y: 18 }
+    },
+    padding: 15
   },
   property: {
     offset_position_drag_start: { x: 0, y: 0 },
     body: null,
     body_size: { x: 0, y: 0 },
     points: {},
+    texts: []
   },
   method: {
     init: function(parent, options) {
@@ -25,8 +34,7 @@ var Node = classify('Node', {
       this.__super__().init.apply(this, arguments);
     },
     add_point: function(name, options) {
-      var p = new Point(this, options);
-      p.name = name;
+      var p = new Point(this, options, name);
       this.points[name] = p;
       return this.add_child(p);
     },
@@ -45,6 +53,7 @@ var Node = classify('Node', {
       };
       shape.style  = this.get_style('base');
       shape.corner = {x: 10, y: 10};
+      var type = options.type;
       var d = new Fashion.Rect(shape);
       if (options.zIndex) d.zIndex(options.zIndex);
       if (options.body) {
@@ -55,17 +64,18 @@ var Node = classify('Node', {
         body.html(options.body);
         body.css({
           position: 'absolute',
-          left:     window_pos.left + pos.x + (options.padding || 0),
-          top:      window_pos.top  + pos.y + (options.padding || 0)
+          left:     window_pos.left + pos.x + Node.padding,
+          top:      window_pos.top  + pos.y + Node.header.height + Node.padding,
         });
         $(document.body).append(body);
         var w = body.width();
         var h = body.height();
         d.size({
-          x: w + (options.padding * 2),
-          y: h + (options.padding * 2)
+          x: w + (Node.padding * 2),
+          y: h + Node.header.height + (Node.padding * 2)
         });
         this.body = body;
+        this.body.hide();
         this.body_size = { x: w, y: h };
         this.body.mouseup(function(e){ self.body_mouseup(e); });
         if (options.datas) this.load_datas(options.datas);
@@ -96,8 +106,8 @@ var Node = classify('Node', {
       var ny = (data) ? data.y : this.body.height();
       this.change({
         size: {
-          x: nx + (this.options.padding * 2),
-          y: ny + (this.options.padding * 2)
+          x: nx + (Node.padding * 2),
+          y: ny + Node.header.height + (Node.padding * 2)
         }
       });
       this.body_size.x = nx; this.body_size.y = ny;
@@ -132,7 +142,6 @@ var Node = classify('Node', {
       if (this.options.datas) {
         for (var k in this.options.datas) {
           var elem = $('#' + k, this.body);
-          console.log(elem.attr('checked'));
           if (elem.attr('type') === 'checkbox')
             datas[k] = !!elem.is(':checked');
           else datas[k] = elem.val();
@@ -170,19 +179,70 @@ var Node = classify('Node', {
       };
     }
   },
+  before: {
+    drawed: function() {
+      var p = this.position();
+      var z = this.zIndex() + 1;
+      var t = new Fashion.Text({
+        anchor: 'left',
+        position: {
+          x: p.x + Node.header.offset.x,
+          y: p.y + Node.header.offset.y
+        },
+        text: this.options.type,
+        zIndex: z,
+        fontFamily: Node.header.fontFamily,
+        fontSize: Node.header.fontSize,
+      });
+      t.style({fill: _fashion_fill(this.options.color || Node.style.color)});
+      this.stage.d.draw(t);
+      this.texts.push(t);
+    },
+    erase: function() {
+      this.body.remove();
+      for (var i=0, l=this.texts.length; i<l; i++) {
+        this.stage.d.erase(this.texts[i]);
+      }
+    }
+  },
   after: {
     change: function(d) {
       if (d.position) {
         var pos = d.position;
         var window_pos = this.stage.html.position();
         this.body.css({
-          left:     window_pos.left + pos.x + (this.options.padding || 0),
-          top:      window_pos.top  + pos.y + (this.options.padding || 0)
+          left:     window_pos.left + pos.x + Node.padding,
+          top:      window_pos.top  + pos.y + Node.header.height + Node.padding
         });
+        var z = this.zIndex() + 1;
+        for (var i=0, l=this.texts.length; i<l; i++) {
+          var t = this.texts[i];
+          t.position({
+            x: pos.x + Node.header.offset.x,
+            y: pos.y + Node.header.offset.y
+          });
+          t.zIndex(z);
+        }
       }
     },
-    erase: function() {
-      this.body.remove();
+    select: function() {
+      this.body.hide();
+      var z = this.zIndex() + 1;
+      for (var i=0, l=this.texts.length; i<l; i++) {
+        var t = this.texts[i];
+        t.zIndex(z);
+      }
+      for (var n in this.points) {
+        var p = this.points[n];
+        p.on_parent_select();
+      }
+    },
+    unselect: function() {
+      this.body.show();
+      for (var n in this.points) {
+        var p = this.points[n];
+        p.on_parent_unselect();
+      }
     }
   }
 });

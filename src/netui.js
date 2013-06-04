@@ -1,5 +1,40 @@
 (function(window) {
 
+  function _fashion_color(c) {
+    if (c instanceof Fashion.Color) {
+      return c;
+    } else if (typeof c == 'string') {
+      return new Fashion.Color(c);
+    }
+    return null;
+  }
+
+  function _fashion_fill(c) {
+    if (c instanceof Fashion.FloodFill) {
+      return c;
+    } else if (c instanceof Fashion.Color) {
+      return new Fashion.FloodFill(c);
+    } else if (typeof c == 'string') {
+      return new Fashion.FloodFill(new Fashion.Color(c));
+    }
+    return null;
+  }
+
+  function _convert_fashion(def) {
+    if (!(typeof def == 'object' && def.constructor == Object)) return def;
+    var rt = {};
+    for (var i in def) {
+      if (i === 'color') {
+        rt[i] = new Fashion.Color(def[i]);
+      } else if (i === 'fill') {
+        rt[i] = new Fashion.FloodFill(new Fashion.Color(def[i]));
+      } else {
+        rt[i] = _convert_fashion(def[i]);
+      }
+    }
+    return rt;
+  }
+
   include("util.js");
   include("element_base.js");
   include("pipe.js");
@@ -24,20 +59,6 @@
         point: {},
         node:  {}
       },
-      _convert_fashion: function (def) {
-        if (!(typeof def == 'object' && def.constructor == Object)) return def;
-        var rt = {};
-        for (var i in def) {
-          if (i === 'color') {
-            rt[i] = new Fashion.Color(def[i]);
-          } else if (i === 'fill') {
-            rt[i] = new Fashion.FloodFill(new Fashion.Color(def[i]));
-          } else {
-            rt[i] = this._convert_fashion(def[i]);
-          }
-        }
-        return rt;
-      },
       definePipeType: function (definitions) {
         function wrap(d) {
           return d ? { fill: null, stroke: d } : null;
@@ -45,7 +66,7 @@
         for (var name in definitions) {
           var definition  = definitions[name];
           this.type_definitions.pipe[name] = definition;
-          var style       = this._convert_fashion(definition.style);
+          var style       = _convert_fashion(definition.style);
           style.base      = wrap(style.base);
           style.hover     = wrap(style.hover) || style.base;
           style.highlight = wrap(style.highlight) || style.base;
@@ -56,7 +77,7 @@
         for (var name in definitions) {
           var definition  = definitions[name];
           this.type_definitions.point[name] = definition;
-          this.types.point[name] = definition;
+          this.types.point[name] = _convert_fashion(definition);
         }
       },
       defineNodeType: function (definitions, onDefinitionFinished) {
@@ -76,9 +97,9 @@
           var definition  = definitions[name];
           self.type_definitions.node[name] = definition;
           var def = {};
-          var style = self._convert_fashion(definition.style);
+          var style = _convert_fashion(definition.style);
           style.base = wrap(style.base);
-          style.hover     = wrap(style.hover) || style.base;
+          style.hover = wrap(style.hover) || style.base;
           style.highlight = wrap(style.highlight) || style.base;
           def.style = style;
           if (definition.body) {
@@ -109,6 +130,7 @@
         var connect_filter = function(pt) {
           return -1 < _default.connectable.indexOf(pt.options.type);
         };
+        var label = (d && d.hasOwnProperty('label')) ? d.label : _default.label;
         node.add_point(name, {
           origin: origin,
           offset: offset,
@@ -116,7 +138,9 @@
           pipe_style: pipe_style,
           connect_filter: connect_filter,
           connections: d.connections || [],
-          type: type
+          type: type,
+          label: label,
+          color: (d && d.color) || _default.color
         });
       },
       createNode: function (stage, type, definition) {
@@ -142,9 +166,13 @@
           zIndex:   (d && d.zIndex)   || stage.d.getMaxDepth() + 1,
           body:     settings.body,
           datas:    datas,
-          padding:  20,
+          padding:  25,
           style:    settings.style,
-          type:     type
+          type:     type,
+          color:    ((d && d.color) ||
+                     (d && d.style && d.style.color) ||
+                     (settings.style && settings.style.color) ||
+                     settings.color)
         });
         if (d && d.points) {
           for (var name in d.points) {
@@ -158,6 +186,7 @@
           }
         }
         if (d && d.selecting) node.select(false, true);
+        else node.unselect(false, true);
       },
       dump_data_network: function(stage, pretty) {
         for (var i=0, l=stage.elems.length, net = []; i<l; i++) {
