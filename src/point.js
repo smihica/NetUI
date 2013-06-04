@@ -123,14 +123,14 @@ var Point = classify('Point', {
       }
       return rt;
     },
-    dump: function() {
+    dump: function(backref_p) {
       var connections = [];
       var pts = this.connecting_points();
       var my_idx = this.stage.get_elem_index(this, NetUI.Node);
       for (var i=0, l=pts.length; i<l; i++) {
         var p = pts[i];
         var node_idx = this.stage.get_elem_index(p.parent, NetUI.Node);
-        if (node_idx < my_idx)
+        if (backref_p || node_idx < my_idx)
           connections.push([node_idx, p.name]);
       }
       return {

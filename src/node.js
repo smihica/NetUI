@@ -68,8 +68,8 @@ var Node = classify('Node', {
         this.body = body;
         this.body_size = { x: w, y: h };
         this.body.mouseup(function(e){ self.body_mouseup(e); });
+        if (options.datas) this.load_datas(options.datas);
       }
-
       return d;
     },
     click: function(e) {
@@ -116,19 +116,57 @@ var Node = classify('Node', {
     mouseup: function(e) {
       if (!this.selecting) this.stylize('base');
     },
-    dump: function() {
+    load_datas: function(datas) {
+      for (var k in datas) {
+        var v = datas[k];
+        var elem = $('#' + k, this.body);
+        if (elem.attr('type') === 'checkbox') {
+          elem.attr('checked', !!v);
+        } else {
+          elem.val(v);
+        }
+      }
+    },
+    dump_datas: function() {
+      var datas = {};
+      if (this.options.datas) {
+        for (var k in this.options.datas) {
+          var elem = $('#' + k, this.body);
+          console.log(elem.attr('checked'));
+          if (elem.attr('type') === 'checkbox')
+            datas[k] = !!elem.is(':checked');
+          else datas[k] = elem.val();
+        }
+      }
+      return datas;
+    },
+    dump_points: function(backref_p) {
       var points = {};
       for (var n in this.points) {
         var p = this.points[n];
-        points[n] = p.dump();
+        points[n] = p.dump(backref_p);
       }
+      return points;
+    },
+    dump_data_network: function() {
+      var points = this.dump_points(true);
+      var datas  = this.dump_datas();
+      return {
+        points: points,
+        datas:  datas
+      };
+    },
+    dump: function() {
+      var points = this.dump_points(false);
+      var datas  = this.dump_datas();
       return {
         selecting:  this.selecting,
         type:       this.options.type,
         position:   this.position(),
         size:       this.options.size,
         zIndex:     this.zIndex(),
-        points:     points
+        points:     points,
+        datas:      datas
       };
     }
   },

@@ -603,14 +603,14 @@ var Point = classify('Point', {
       }
       return rt;
     },
-    dump: function() {
+    dump: function(backref_p) {
       var connections = [];
       var pts = this.connecting_points();
       var my_idx = this.stage.get_elem_index(this, NetUI.Node);
       for (var i=0, l=pts.length; i<l; i++) {
         var p = pts[i];
         var node_idx = this.stage.get_elem_index(p.parent, NetUI.Node);
-        if (node_idx < my_idx)
+        if (backref_p || node_idx < my_idx)
           connections.push([node_idx, p.name]);
       }
       return {
@@ -713,8 +713,8 @@ var Node = classify('Node', {
         this.body = body;
         this.body_size = { x: w, y: h };
         this.body.mouseup(function(e){ self.body_mouseup(e); });
+        if (options.datas) this.load_datas(options.datas);
       }
-
       return d;
     },
     click: function(e) {
@@ -761,19 +761,57 @@ var Node = classify('Node', {
     mouseup: function(e) {
       if (!this.selecting) this.stylize('base');
     },
-    dump: function() {
+    load_datas: function(datas) {
+      for (var k in datas) {
+        var v = datas[k];
+        var elem = $('#' + k, this.body);
+        if (elem.attr('type') === 'checkbox') {
+          elem.attr('checked', !!v);
+        } else {
+          elem.val(v);
+        }
+      }
+    },
+    dump_datas: function() {
+      var datas = {};
+      if (this.options.datas) {
+        for (var k in this.options.datas) {
+          var elem = $('#' + k, this.body);
+          console.log(elem.attr('checked'));
+          if (elem.attr('type') === 'checkbox')
+            datas[k] = !!elem.is(':checked');
+          else datas[k] = elem.val();
+        }
+      }
+      return datas;
+    },
+    dump_points: function(backref_p) {
       var points = {};
       for (var n in this.points) {
         var p = this.points[n];
-        points[n] = p.dump();
+        points[n] = p.dump(backref_p);
       }
+      return points;
+    },
+    dump_data_network: function() {
+      var points = this.dump_points(true);
+      var datas  = this.dump_datas();
+      return {
+        points: points,
+        datas:  datas
+      };
+    },
+    dump: function() {
+      var points = this.dump_points(false);
+      var datas  = this.dump_datas();
       return {
         selecting:  this.selecting,
         type:       this.options.type,
         position:   this.position(),
         size:       this.options.size,
         zIndex:     this.zIndex(),
-        points:     points
+        points:     points,
+        datas:      datas
       };
     }
   },
@@ -1044,6 +1082,7 @@ var Stage = classify('Stage', {
             def.body = '';
           }
           def.points = definition.points;
+          def.data_binds = definition.data_binds;
           self.types.node[name] = def;
         })(name);
       },
@@ -1071,6 +1110,16 @@ var Stage = classify('Stage', {
         var d = definition;
         var vp = stage.viewport();
         var settings = this.types.node[type];
+
+        var datas = {};
+        for (var k in settings.data_binds) {
+          var v = settings.data_binds[k]; // get default
+          if (d && d.datas && d.datas.hasOwnProperty(k)) {
+            v = d.datas[k];
+          }
+          datas[k] = v;
+        }
+
         var node = new this.Node({
           stage: stage,
           unbind: function(itm) {}
@@ -1079,6 +1128,7 @@ var Stage = classify('Stage', {
           size:     (d && d.size)     || 'auto',
           zIndex:   (d && d.zIndex)   || stage.d.getMaxDepth() + 1,
           body:     settings.body,
+          datas:    datas,
           padding:  20,
           style:    settings.style,
           type:     type
@@ -1095,6 +1145,15 @@ var Stage = classify('Stage', {
           }
         }
         if (d && d.selecting) node.select(false, true);
+      },
+      dump_data_network: function(stage, pretty) {
+        for (var i=0, l=stage.elems.length, net = []; i<l; i++) {
+          var n = stage.elems[i];
+          if (n instanceof Node) net.push(n.dump_data_network());
+        }
+        return ((pretty) ?
+                JSON.stringify(net, null, pretty) :
+                JSON.stringify(net));
       },
       dump: function(stage, pretty) {
         for (var i=0, l=stage.elems.length, nodes = []; i<l; i++) {
@@ -1148,7 +1207,8 @@ var Stage = classify('Stage', {
               size:      node.size,
               zIndex:    node.zIndex,
               selecting: node.selecting,
-              points:    node.points
+              points:    node.points,
+              datas:     node.datas
             });
           }
         }

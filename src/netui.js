@@ -95,6 +95,7 @@
             def.body = '';
           }
           def.points = definition.points;
+          def.data_binds = definition.data_binds;
           self.types.node[name] = def;
         })(name);
       },
@@ -122,6 +123,16 @@
         var d = definition;
         var vp = stage.viewport();
         var settings = this.types.node[type];
+
+        var datas = {};
+        for (var k in settings.data_binds) {
+          var v = settings.data_binds[k]; // get default
+          if (d && d.datas && d.datas.hasOwnProperty(k)) {
+            v = d.datas[k];
+          }
+          datas[k] = v;
+        }
+
         var node = new this.Node({
           stage: stage,
           unbind: function(itm) {}
@@ -130,6 +141,7 @@
           size:     (d && d.size)     || 'auto',
           zIndex:   (d && d.zIndex)   || stage.d.getMaxDepth() + 1,
           body:     settings.body,
+          datas:    datas,
           padding:  20,
           style:    settings.style,
           type:     type
@@ -146,6 +158,15 @@
           }
         }
         if (d && d.selecting) node.select(false, true);
+      },
+      dump_data_network: function(stage, pretty) {
+        for (var i=0, l=stage.elems.length, net = []; i<l; i++) {
+          var n = stage.elems[i];
+          if (n instanceof Node) net.push(n.dump_data_network());
+        }
+        return ((pretty) ?
+                JSON.stringify(net, null, pretty) :
+                JSON.stringify(net));
       },
       dump: function(stage, pretty) {
         for (var i=0, l=stage.elems.length, nodes = []; i<l; i++) {
@@ -199,7 +220,8 @@
               size:      node.size,
               zIndex:    node.zIndex,
               selecting: node.selecting,
-              points:    node.points
+              points:    node.points,
+              datas:     node.datas
             });
           }
         }
