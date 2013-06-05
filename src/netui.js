@@ -1,44 +1,11 @@
 (function(window) {
 
-  function _fashion_color(c) {
-    if (c instanceof Fashion.Color) {
-      return c;
-    } else if (typeof c == 'string') {
-      return new Fashion.Color(c);
-    }
-    return null;
-  }
-
-  function _fashion_fill(c) {
-    if (c instanceof Fashion.FloodFill) {
-      return c;
-    } else if (c instanceof Fashion.Color) {
-      return new Fashion.FloodFill(c);
-    } else if (typeof c == 'string') {
-      return new Fashion.FloodFill(new Fashion.Color(c));
-    }
-    return null;
-  }
-
-  function _convert_fashion(def) {
-    if (!(typeof def == 'object' && def.constructor == Object)) return def;
-    var rt = {};
-    for (var i in def) {
-      if (i === 'color') {
-        rt[i] = new Fashion.Color(def[i]);
-      } else if (i === 'fill') {
-        rt[i] = new Fashion.FloodFill(new Fashion.Color(def[i]));
-      } else {
-        rt[i] = _convert_fashion(def[i]);
-      }
-    }
-    return rt;
-  }
-
   include("util.js");
   include("element_base.js");
+  include("text.js");
   include("pipe.js");
   include("point.js");
+  include("button.js");
   include("node.js");
   include("stage.js");
 
@@ -75,9 +42,9 @@
       },
       definePointType: function (definitions) {
         for (var name in definitions) {
-          var definition  = definitions[name];
-          this.type_definitions.point[name] = definition;
-          this.types.point[name] = _convert_fashion(definition);
+          var d = definitions[name];
+          this.type_definitions.point[name] = d;
+          this.types.point[name] = _convert_fashion(d);
         }
       },
       defineNodeType: function (definitions, onDefinitionFinished) {
@@ -94,19 +61,19 @@
         };
         for (var name in definitions) (function(name) {
           names.push(name);
-          var definition  = definitions[name];
-          self.type_definitions.node[name] = definition;
+          var d  = definitions[name];
+          self.type_definitions.node[name] = d;
           var def = {};
-          var style = _convert_fashion(definition.style);
+          var style = _convert_fashion(d.style);
           style.base = wrap(style.base);
           style.hover = wrap(style.hover) || style.base;
           style.highlight = wrap(style.highlight) || style.base;
           def.style = style;
-          if (definition.body) {
-            def.body = definition.body;
-          } else if (definition.body_url) {
+          if (d.body) {
+            def.body = d.body;
+          } else if (d.body_url) {
             $.ajax({
-              url: definition.body_url,
+              url: d.body_url,
               type: 'get',
             }).done(function(txt) {
               def.body = txt;
@@ -115,8 +82,9 @@
           } else {
             def.body = '';
           }
-          def.points = definition.points;
-          def.data_binds = definition.data_binds;
+          def.points = d.points;
+          def.data_binds = d.data_binds;
+          def.buttons = d.buttons;
           self.types.node[name] = def;
         })(name);
       },
@@ -132,8 +100,10 @@
         };
         var label = (d && d.hasOwnProperty('label')) ? d.label : _default.label;
         node.add_point(name, {
-          origin: origin,
-          offset: offset,
+          position: {
+            origin: origin,
+            offset: offset,
+          },
           radius: radius,
           pipe_style: pipe_style,
           connect_filter: connect_filter,
@@ -150,7 +120,7 @@
 
         var datas = {};
         for (var k in settings.data_binds) {
-          var v = settings.data_binds[k]; // get default
+          var v = settings.data_binds[k];
           if (d && d.datas && d.datas.hasOwnProperty(k)) {
             v = d.datas[k];
           }
@@ -172,7 +142,8 @@
           color:    ((d && d.color) ||
                      (d && d.style && d.style.color) ||
                      (settings.style && settings.style.color) ||
-                     settings.color)
+                     settings.color),
+          buttons:  settings.buttons
         });
         if (d && d.points) {
           for (var name in d.points) {
@@ -250,7 +221,7 @@
               zIndex:    node.zIndex,
               selecting: node.selecting,
               points:    node.points,
-              datas:     node.datas
+              datas:     node.datas,
             });
           }
         }

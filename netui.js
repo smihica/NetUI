@@ -1,41 +1,6 @@
 /** @file netui.js { */
 (function(window) {
 
-  function _fashion_color(c) {
-    if (c instanceof Fashion.Color) {
-      return c;
-    } else if (typeof c == 'string') {
-      return new Fashion.Color(c);
-    }
-    return null;
-  }
-
-  function _fashion_fill(c) {
-    if (c instanceof Fashion.FloodFill) {
-      return c;
-    } else if (c instanceof Fashion.Color) {
-      return new Fashion.FloodFill(c);
-    } else if (typeof c == 'string') {
-      return new Fashion.FloodFill(new Fashion.Color(c));
-    }
-    return null;
-  }
-
-  function _convert_fashion(def) {
-    if (!(typeof def == 'object' && def.constructor == Object)) return def;
-    var rt = {};
-    for (var i in def) {
-      if (i === 'color') {
-        rt[i] = new Fashion.Color(def[i]);
-      } else if (i === 'fill') {
-        rt[i] = new Fashion.FloodFill(new Fashion.Color(def[i]));
-      } else {
-        rt[i] = _convert_fashion(def[i]);
-      }
-    }
-    return rt;
-  }
-
 /** @file util.js { */
 /** @file extend_classify.js { */
 // Generic definition of setter and getter.
@@ -81,17 +46,47 @@ classify.addDirective("accessor", function(context, key, value) {
 
 })();/** @} */
 
+function _map(fn, arr) {
+  if (typeof arr.map == 'function') return arr.map(fn);
+  else {
+    for (var i=0, l=arr.length, rt=[]; i<l; i++) {
+      var itm = fn(arr[i], i);
+      rt.push(itm);
+    }
+    return rt;
+  }
+}
+
 function _clip(val, max, min) {
   return (val < min) ? min : (max < val) ? max : val;
 }
 
-function _rand_color() {
-  var c = [];
-  for (var i=3; 0<i; i--) {
-    c.push('0123456789abcdef'[Math.floor(Math.random() * 16)]);
+function _fashion_color(c) {
+  return  ((c instanceof Fashion.Color) ? c :
+           (typeof c == 'string') ? new Fashion.Color(c) :
+           null);
+}
+
+function _fashion_fill(c) {
+  return ((c instanceof Fashion.FloodFill) ? c :
+          (c = _fashion_color(c)) ? new Fashion.FloodFill(c) :
+          null);
+}
+
+function _convert_fashion(def) {
+  if (!(typeof def == 'object' && def.constructor == Object)) return def;
+  var rt = {};
+  for (var i in def) {
+    if (i === 'color') {
+      rt[i] = _fashion_color(def[i]);
+    } else if (i === 'fill') {
+      rt[i] = _fashion_fill(def[i]);
+    } else {
+      rt[i] = _convert_fashion(def[i]);
+    }
   }
-  return new Fashion.Color('#'+c.join(''));
-};
+  return rt;
+}
 
 var SortedList = classify('SortedList', {
   static: {
@@ -265,18 +260,21 @@ var ElementBase = classify('ElementBase', {
     stage:     null,
     parent:    null,
     style:     null,
+    options:   null,
     selecting: false,
     children:  [],
   },
   method: {
-    init: function(parent, shape) {
+    init: function(parent, options) {
       this.parent = parent;
       this.stage = parent.stage;
-      this.d = this.make_instance(parent, shape);
+      this.options = options || {};
+      this.style = ((options && options.style) || {});
+      this.d = this.make_instance(parent, options);
       this.parent_changed();
       this.stage.draw(this);
     },
-    make_instance: function(parent, shape) {
+    make_instance: function(parent, options) {
       return null;
     },
     get_style: function(mode) {
@@ -411,6 +409,81 @@ var ElementBase = classify('ElementBase', {
     }
   }
 });/** @} */
+/** @file text.js { */
+var Text = classify('Text', {
+  parent: ElementBase,
+  property: {},
+  static: {
+    style: {
+      color: _fashion_color('#000'),
+      fontFamily: 'Arial',
+      fontSize: 12,
+      offset: { x: 0, y: 0 },
+      opacity: { normal: 255, soft: 160 }
+    }
+  },
+  method: {
+    init: function() {
+      this.__super__().init.apply(this, arguments);
+    },
+    make_instance: function(parent, options) {
+      var p;
+      if (options.origin && options.origin === 'center') p = parent.center();
+      else p = parent.position();
+      var z = parent.zIndex() + 1;
+      var t = new Fashion.Text({
+        anchor: options.anchor || 'left',
+        position: {
+          x: p.x + options.offset.x,
+          y: p.y + options.offset.y
+        },
+        text: options.text,
+        zIndex: z,
+        fontFamily: options.fontFamily || Text.style.fontFamily,
+        fontSize: options.fontSize || Text.style.fontSize
+      });
+      t.style({fill: _fashion_fill(options.color || Text.style.color)});
+      return t;
+    },
+    parent_changed: function() {
+      var pos;
+      if (this.options.origin && this.options.origin === 'center')
+        pos = this.parent.center();
+      else pos = this.parent.position();
+      var z   = this.parent.zIndex() + 1;
+      this.d.position({
+        x: pos.x + this.options.offset.x,
+        y: pos.y + this.options.offset.y
+      });
+      this.d.zIndex(z);
+    },
+    soften: function(sw) {
+      var fill = this.d.style().fill;
+      fill.color.a = sw ? Text.style.opacity.soft : Text.style.opacity.normal;
+      this.d.style({fill: fill});
+    },
+    _through_event: function(target, ev_name, e) {
+      if (target && this[target]) {
+        e.offsetPosition.x += this.options.offset.x;
+        e.offsetPosition.y += this.options.offset.y;
+        this[target][ev_name](e);
+      }
+    },
+    click: function(e) {
+      this._through_event(this.options.through_event, 'click', e);
+    },
+    drag_start: function(e) {
+      this._through_event(this.options.through_event, 'drag_start', e);
+    },
+    drag: function(e) {
+      this._through_event(this.options.through_event, 'drag', e);
+    },
+    drag_end: function(e) {
+      this._through_event(this.options.through_event, 'drag_end', e);
+    }
+  }
+});
+/** @} */
 /** @file pipe.js { */
 var Pipe = classify('Pipe', {
   parent: ElementBase,
@@ -438,14 +511,11 @@ var Pipe = classify('Pipe', {
   },
   property: {
     parents: [],
-    options: null
   },
   method: {
     init: function(parent, options) {
       this.parents[0] = parent;
       this.parents[1] = null;
-      this.options = options;
-      this.style = this.options.style;
       this.__super__().init.apply(this, arguments);
     },
     make_instance: function(parent, options) {
@@ -535,11 +605,10 @@ var Point = classify('Point', {
     },
     last_hovering_points: [],
     fontSize: 13,
-    fontFamily: 'Arial',
-    fontOpacity: {
-      select: 255,
-      free:   160
-    }
+    fontFamily: 'Arial'
+  },
+  accessor: {
+    offset: { x: 0, y: 0 }
   },
   property: {
     d:      null,
@@ -549,13 +618,12 @@ var Point = classify('Point', {
     last_pos: { x: 0, y: 0 },
     current_pipe: null,
     text: null,
-    text_offset: { x: 0, y: 0 },
     name: ''
   },
   method: {
     init: function(parent, options, name) {
       this.name = name;
-      this.options = options;
+      this.offset({ x: options.position.offset.x, y: options.position.offset.y });
       this.__super__().init.apply(this, arguments);
       var id = this.d.id;
       Point.points[id] = this;
@@ -579,8 +647,8 @@ var Point = classify('Point', {
     },
     parent_changed: function() {
       var s = this.parent.size();
-      var origin = this.origin_pos(this.options.origin);
-      var offset = this.options.offset;
+      var origin = this.origin_pos(this.options.position.origin);
+      var offset = this.offset();
       var pos = {
         x: (origin.x + (Math.abs(offset.x) < 1 ? offset.x * s.x : offset.x)) - this.options.radius,
         y: (origin.y + (Math.abs(offset.y) < 1 ? offset.y * ( s.y - Node.header.height) : offset.y)) - this.options.radius
@@ -642,9 +710,12 @@ var Point = classify('Point', {
     connecting_points: function() {
       var rt = [];
       for (var i=0, l=this.children.length; i<l; i++) {
-        for (var j=0; j<2; j++) {
-          var p = this.children[i].parents[j];
-          if (p && p !== this) rt.push(p);
+        var c = this.children[i];
+        if (c instanceof Pipe) {
+          for (var j=0; j<2; j++) {
+            var p = c.parents[j];
+            if (p && p !== this) rt.push(p);
+          }
         }
       }
       return rt;
@@ -664,26 +735,18 @@ var Point = classify('Point', {
         label:    (!!this.options.label),
         type:     this.options.type,
         position: {
-          origin: this.options.origin,
-          offset: this.options.offset
+          origin: this.options.position.origin,
+          offset: this.offset()
         },
         connections: connections,
         color:    set_color
       };
     },
     on_parent_select: function() {
-      if (this.text) {
-        var fill = this.text.style().fill;
-        fill.color.a = Point.fontOpacity.select;
-        this.text.style({fill: fill});
-      }
+      if (this.text) this.text.soften(false);
     },
     on_parent_unselect: function() {
-      if (this.text) {
-        var fill = this.text.style().fill;
-        fill.color.a = Point.fontOpacity.free;
-        this.text.style({fill: fill});
-      }
+      if (this.text) this.text.soften(true);
     },
     _get_labels_anchor_position: function() {
       var pp = this.parent.position();
@@ -695,13 +758,13 @@ var Point = classify('Point', {
       };
       var a, o;
       if (0.8 < offset.x) {
-        a = 'right'; o = { x: -7, y: 3.5 };
+        a = 'right';  o = { x: -7, y: 3.5 };
       } else if (offset.y < 0.3) {
-        a = 'center'; o = { x: 0, y: 18 };
+        a = 'center'; o = { x: 0,  y: 18 };
       } else if (0.7 < offset.y) {
-        a = 'center'; o = { x: 0, y: -10 };
+        a = 'center'; o = { x: 0,  y: -10 };
       } else {
-        a = 'left'; o = { x: 8, y: 3.5 };
+        a = 'left';   o = { x: 8,  y: 3.5 };
       }
       return { anchor: a, offset: o };
     }
@@ -709,41 +772,25 @@ var Point = classify('Point', {
   before: {
     drawed: function() {
       if (this.options.label) {
-        var p = this.center();
-        var z = this.zIndex();
         var ap = this._get_labels_anchor_position();
-        var t = new Fashion.Text({
-          anchor: ap.anchor,
-          position: { x: p.x + ap.offset.x, y: p.y + ap.offset.y },
-          text: this.name,
+        var t = new Text(this, {
+          origin:     'center',
+          anchor:     ap.anchor,
+          offset: {
+            x: ap.offset.x,
+            y: ap.offset.y
+          },
+          text:       this.name,
           fontFamily: Point.fontFamily,
           fontSize:   Point.fontSize,
-          zIndex: z
+          color:      this.options.color
         });
-        t.style({fill: _fashion_fill(this.options.color || Point.style.color)});
-        this.stage.d.draw(t);
         this.text = t;
-        this.text_offset = ap.offset;
+        this.children.push(t);
       }
-    },
-    erase: function() {
-      if (this.text) this.stage.d.erase(this.text);
     }
   },
   after: {
-    change: function() {
-      if (this.text) {
-        var p = this.center();
-        this.text.position({
-          x: p.x + this.text_offset.x,
-          y: p.y + this.text_offset.y
-        });
-        this.text.zIndex(this.zIndex());
-      }
-    },
-    select: function() {
-      if (this.text) this.text.zIndex(this.zIndex());
-    },
     init: function(parent, options, name) {
       var cs = options.connections;
       if (cs) {
@@ -762,6 +809,73 @@ var Point = classify('Point', {
     }
   }
 });/** @} */
+/** @file button.js { */
+var Button = classify('Button', {
+  parent: ElementBase,
+  property: {},
+  static: {
+    style: {
+      color: {
+        base: _fashion_fill('#999'),
+        foreground: _fashion_fill('#CCC')
+      }
+    },
+    size: { x: 16, y: 16 },
+    icons: {},
+    new_button: function(name, icon_url) {
+      this.icons[name] = icon_url;
+    }
+  },
+  method: {
+    init: function() {
+      this.__super__().init.apply(this, arguments);
+    },
+    make_instance: function(parent, options) {
+      var icon_url = Button.icons[options.name];
+      if (!icon_url)
+        throw new Error('Unknown button\'s name "'+ options.name +'".');
+      var shape = {
+        points: new Fashion.PathData(
+          [["M", 0, 0], ["L", Button.size.x, 0],
+           ["L", Button.size.x, Button.size.y],
+           ["L", 0, Button.size.y], ["Z"]]),
+        style: {
+          stroke: null,
+          fill: new Fashion.ImageTileFill(new Fashion.ImageData(icon_url))
+        }
+      };
+      var d = new Fashion.Path(shape);
+      if (options.zIndex) d.zIndex(options.zIndex);
+      return d;
+    },
+    origin_pos: function(origin) {
+      var p = this.parent.position();
+      var s = this.parent.size();
+      var o = origin.split('-');
+      return {
+        x: p.x + (o[0] === 'left' ? 0 : s.x),
+        y: p.y + (o[1] === 'top'  ? 0 : s.y)
+      };
+    },
+    parent_changed: function() {
+      var s   = this.parent.size();
+      var origin = this.origin_pos(this.options.origin);
+      var offset = this.options.offset;
+      this.d.position({
+        x: (origin.x + (Math.abs(offset.x) < 1 ? offset.x * s.x : offset.x)),
+        y: (origin.y + (Math.abs(offset.y) < 1 ? offset.y * s.y : offset.y))
+      });
+      var z   = this.parent.zIndex() + 1;
+      this.d.zIndex(z);
+    },
+    click: function(e) {
+      if (this.options.onclick) this.options.onclick(this.parent, e);
+    }
+  }
+});
+
+Button.new_button('plus', 'plus_icon.png');
+Button.new_button('setting', 'setting_icon.png');/** @} */
 /** @file node.js { */
 var Node = classify('Node', {
   parent: ElementBase,
@@ -785,27 +899,32 @@ var Node = classify('Node', {
     },
     padding: 15
   },
+  accessor: {
+    datas: {}
+  },
   property: {
     offset_position_drag_start: { x: 0, y: 0 },
     body: null,
     body_size: { x: 0, y: 0 },
     points: {},
-    texts: []
+    points_length: 0,
   },
   method: {
-    init: function(parent, options) {
-      this.options = options;
-      this.style = this.options.style;
+    init: function() {
       this.__super__().init.apply(this, arguments);
     },
     add_point: function(name, options) {
       var p = new Point(this, options, name);
       this.points[name] = p;
+      this.points_length++;
       return this.add_child(p);
     },
     remove_point: function(p) {
       var name = p.name;
-      if (name) delete this.points[name];
+      if (name) {
+        delete this.points[name];
+        this.points_length--;
+      }
       this.remove_child(p);
     },
     get_point_by_name: function(name) {
@@ -814,38 +933,39 @@ var Node = classify('Node', {
     make_instance: function(parent, options) {
       var shape = {
         position: options.position,
-        size:     options.size === 'auto' ? {x: 0, y: 0} : options.size,
+        size:     options.size === 'auto' ? { x: 0, y: 0 } : options.size,
       };
       shape.style  = this.get_style('base');
-      shape.corner = {x: 10, y: 10};
+      shape.corner = { x: 10, y: 10 };
       var type = options.type;
       var d = new Fashion.Rect(shape);
       if (options.zIndex) d.zIndex(options.zIndex);
-      if (options.body) {
-        var self = this;
-        var pos = options.position;
-        var window_pos = this.stage.html.position();
-        var body = $('<div/>', {id: "body_" + d.id});
-        body.html(options.body);
-        body.css({
-          position: 'absolute',
-          left:     window_pos.left + pos.x + Node.padding,
-          top:      window_pos.top  + pos.y + Node.header.height + Node.padding,
-        });
-        $(document.body).append(body);
-        var w = body.width();
-        var h = body.height();
-        d.size({
-          x: w + (Node.padding * 2),
-          y: h + Node.header.height + (Node.padding * 2)
-        });
-        this.body = body;
-        this.body.hide();
-        this.body_size = { x: w, y: h };
-        this.body.mouseup(function(e){ self.body_mouseup(e); });
-        if (options.datas) this.load_datas(options.datas);
-      }
+      if (options.body) this.make_body(parent, d, options);
       return d;
+    },
+    make_body: function(parent, d, options) {
+      var self = this;
+      var pos = options.position;
+      var window_pos = this.stage.html.position();
+      var body = $('<div/>', {id: "body_" + d.id});
+      body.html(options.body);
+      body.css({
+        position: 'absolute',
+        left:     window_pos.left + pos.x + Node.padding,
+        top:      window_pos.top  + pos.y + Node.header.height + Node.padding,
+      });
+      $(document.body).append(body);
+      var w = body.width();
+      var h = body.height();
+      d.size({
+        x: w + (Node.padding * 2),
+        y: h + Node.header.height + (Node.padding * 2)
+      });
+      this.body = body;
+      this.body.hide();
+      this.body_size = { x: w, y: h };
+      this.body.mouseup(function(e){ self.body_mouseup(e); });
+      if (options.datas) this.datas(options.datas);
     },
     click: function(e) {
       this.toggle_select();
@@ -891,6 +1011,20 @@ var Node = classify('Node', {
     mouseup: function(e) {
       if (!this.selecting) this.stylize('base');
     },
+    draw_buttons: function() {
+      var i = 1;
+      for (var name in this.options.buttons) {
+        var onclick = this.options.buttons[name];
+        var b = new Button(this, {
+          name:   name,
+          origin: 'right-top',
+          offset: { x: (-20 * i), y: 5 },
+          onclick: onclick
+        });
+        this.children.push(b);
+        i++;
+      }
+    },
     load_datas: function(datas) {
       for (var k in datas) {
         var v = datas[k];
@@ -903,9 +1037,9 @@ var Node = classify('Node', {
       }
     },
     dump_datas: function() {
-      var datas = {};
-      if (this.options.datas) {
-        for (var k in this.options.datas) {
+      var datas = {}, d;
+      if (d = this.datas()) {
+        for (var k in d) {
           var elem = $('#' + k, this.body);
           if (elem.attr('type') === 'checkbox')
             datas[k] = !!elem.is(':checked');
@@ -946,28 +1080,22 @@ var Node = classify('Node', {
   },
   before: {
     drawed: function() {
-      var p = this.position();
-      var z = this.zIndex() + 1;
-      var t = new Fashion.Text({
-        anchor: 'left',
-        position: {
-          x: p.x + Node.header.offset.x,
-          y: p.y + Node.header.offset.y
-        },
+      var t = new Text(this, {
         text: this.options.type,
-        zIndex: z,
+        color: this.options.color || Node.style.color,
+        offset: {
+          x: Node.header.offset.x,
+          y: Node.header.offset.y
+        },
         fontFamily: Node.header.fontFamily,
-        fontSize: Node.header.fontSize,
+        fontSize:   Node.header.fontSize,
+        through_event: 'parent'
       });
-      t.style({fill: _fashion_fill(this.options.color || Node.style.color)});
-      this.stage.d.draw(t);
-      this.texts.push(t);
+      this.children.push(t);
+      if (this.options.buttons) this.draw_buttons();
     },
     erase: function() {
       this.body.remove();
-      for (var i=0, l=this.texts.length; i<l; i++) {
-        this.stage.d.erase(this.texts[i]);
-      }
     }
   },
   after: {
@@ -979,34 +1107,18 @@ var Node = classify('Node', {
           left:     window_pos.left + pos.x + Node.padding,
           top:      window_pos.top  + pos.y + Node.header.height + Node.padding
         });
-        var z = this.zIndex() + 1;
-        for (var i=0, l=this.texts.length; i<l; i++) {
-          var t = this.texts[i];
-          t.position({
-            x: pos.x + Node.header.offset.x,
-            y: pos.y + Node.header.offset.y
-          });
-          t.zIndex(z);
-        }
       }
     },
     select: function() {
       this.body.hide();
-      var z = this.zIndex() + 1;
-      for (var i=0, l=this.texts.length; i<l; i++) {
-        var t = this.texts[i];
-        t.zIndex(z);
-      }
       for (var n in this.points) {
-        var p = this.points[n];
-        p.on_parent_select();
+        this.points[n].on_parent_select();
       }
     },
     unselect: function() {
       this.body.show();
       for (var n in this.points) {
-        var p = this.points[n];
-        p.on_parent_unselect();
+        this.points[n].on_parent_unselect();
       }
     }
   }
@@ -1207,9 +1319,9 @@ var Stage = classify('Stage', {
       },
       definePointType: function (definitions) {
         for (var name in definitions) {
-          var definition  = definitions[name];
-          this.type_definitions.point[name] = definition;
-          this.types.point[name] = _convert_fashion(definition);
+          var d = definitions[name];
+          this.type_definitions.point[name] = d;
+          this.types.point[name] = _convert_fashion(d);
         }
       },
       defineNodeType: function (definitions, onDefinitionFinished) {
@@ -1226,19 +1338,19 @@ var Stage = classify('Stage', {
         };
         for (var name in definitions) (function(name) {
           names.push(name);
-          var definition  = definitions[name];
-          self.type_definitions.node[name] = definition;
+          var d  = definitions[name];
+          self.type_definitions.node[name] = d;
           var def = {};
-          var style = _convert_fashion(definition.style);
+          var style = _convert_fashion(d.style);
           style.base = wrap(style.base);
           style.hover = wrap(style.hover) || style.base;
           style.highlight = wrap(style.highlight) || style.base;
           def.style = style;
-          if (definition.body) {
-            def.body = definition.body;
-          } else if (definition.body_url) {
+          if (d.body) {
+            def.body = d.body;
+          } else if (d.body_url) {
             $.ajax({
-              url: definition.body_url,
+              url: d.body_url,
               type: 'get',
             }).done(function(txt) {
               def.body = txt;
@@ -1247,8 +1359,9 @@ var Stage = classify('Stage', {
           } else {
             def.body = '';
           }
-          def.points = definition.points;
-          def.data_binds = definition.data_binds;
+          def.points = d.points;
+          def.data_binds = d.data_binds;
+          def.buttons = d.buttons;
           self.types.node[name] = def;
         })(name);
       },
@@ -1264,8 +1377,10 @@ var Stage = classify('Stage', {
         };
         var label = (d && d.hasOwnProperty('label')) ? d.label : _default.label;
         node.add_point(name, {
-          origin: origin,
-          offset: offset,
+          position: {
+            origin: origin,
+            offset: offset,
+          },
           radius: radius,
           pipe_style: pipe_style,
           connect_filter: connect_filter,
@@ -1282,7 +1397,7 @@ var Stage = classify('Stage', {
 
         var datas = {};
         for (var k in settings.data_binds) {
-          var v = settings.data_binds[k]; // get default
+          var v = settings.data_binds[k];
           if (d && d.datas && d.datas.hasOwnProperty(k)) {
             v = d.datas[k];
           }
@@ -1304,7 +1419,8 @@ var Stage = classify('Stage', {
           color:    ((d && d.color) ||
                      (d && d.style && d.style.color) ||
                      (settings.style && settings.style.color) ||
-                     settings.color)
+                     settings.color),
+          buttons:  settings.buttons
         });
         if (d && d.points) {
           for (var name in d.points) {
@@ -1382,7 +1498,7 @@ var Stage = classify('Stage', {
               zIndex:    node.zIndex,
               selecting: node.selecting,
               points:    node.points,
-              datas:     node.datas
+              datas:     node.datas,
             });
           }
         }

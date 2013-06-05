@@ -20,27 +20,32 @@ var Node = classify('Node', {
     },
     padding: 15
   },
+  accessor: {
+    datas: {}
+  },
   property: {
     offset_position_drag_start: { x: 0, y: 0 },
     body: null,
     body_size: { x: 0, y: 0 },
     points: {},
-    texts: []
+    points_length: 0,
   },
   method: {
-    init: function(parent, options) {
-      this.options = options;
-      this.style = this.options.style;
+    init: function() {
       this.__super__().init.apply(this, arguments);
     },
     add_point: function(name, options) {
       var p = new Point(this, options, name);
       this.points[name] = p;
+      this.points_length++;
       return this.add_child(p);
     },
     remove_point: function(p) {
       var name = p.name;
-      if (name) delete this.points[name];
+      if (name) {
+        delete this.points[name];
+        this.points_length--;
+      }
       this.remove_child(p);
     },
     get_point_by_name: function(name) {
@@ -49,38 +54,39 @@ var Node = classify('Node', {
     make_instance: function(parent, options) {
       var shape = {
         position: options.position,
-        size:     options.size === 'auto' ? {x: 0, y: 0} : options.size,
+        size:     options.size === 'auto' ? { x: 0, y: 0 } : options.size,
       };
       shape.style  = this.get_style('base');
-      shape.corner = {x: 10, y: 10};
+      shape.corner = { x: 10, y: 10 };
       var type = options.type;
       var d = new Fashion.Rect(shape);
       if (options.zIndex) d.zIndex(options.zIndex);
-      if (options.body) {
-        var self = this;
-        var pos = options.position;
-        var window_pos = this.stage.html.position();
-        var body = $('<div/>', {id: "body_" + d.id});
-        body.html(options.body);
-        body.css({
-          position: 'absolute',
-          left:     window_pos.left + pos.x + Node.padding,
-          top:      window_pos.top  + pos.y + Node.header.height + Node.padding,
-        });
-        $(document.body).append(body);
-        var w = body.width();
-        var h = body.height();
-        d.size({
-          x: w + (Node.padding * 2),
-          y: h + Node.header.height + (Node.padding * 2)
-        });
-        this.body = body;
-        this.body.hide();
-        this.body_size = { x: w, y: h };
-        this.body.mouseup(function(e){ self.body_mouseup(e); });
-        if (options.datas) this.load_datas(options.datas);
-      }
+      if (options.body) this.make_body(parent, d, options);
       return d;
+    },
+    make_body: function(parent, d, options) {
+      var self = this;
+      var pos = options.position;
+      var window_pos = this.stage.html.position();
+      var body = $('<div/>', {id: "body_" + d.id});
+      body.html(options.body);
+      body.css({
+        position: 'absolute',
+        left:     window_pos.left + pos.x + Node.padding,
+        top:      window_pos.top  + pos.y + Node.header.height + Node.padding,
+      });
+      $(document.body).append(body);
+      var w = body.width();
+      var h = body.height();
+      d.size({
+        x: w + (Node.padding * 2),
+        y: h + Node.header.height + (Node.padding * 2)
+      });
+      this.body = body;
+      this.body.hide();
+      this.body_size = { x: w, y: h };
+      this.body.mouseup(function(e){ self.body_mouseup(e); });
+      if (options.datas) this.datas(options.datas);
     },
     click: function(e) {
       this.toggle_select();
@@ -126,6 +132,20 @@ var Node = classify('Node', {
     mouseup: function(e) {
       if (!this.selecting) this.stylize('base');
     },
+    draw_buttons: function() {
+      var i = 1;
+      for (var name in this.options.buttons) {
+        var onclick = this.options.buttons[name];
+        var b = new Button(this, {
+          name:   name,
+          origin: 'right-top',
+          offset: { x: (-20 * i), y: 5 },
+          onclick: onclick
+        });
+        this.children.push(b);
+        i++;
+      }
+    },
     load_datas: function(datas) {
       for (var k in datas) {
         var v = datas[k];
@@ -138,9 +158,9 @@ var Node = classify('Node', {
       }
     },
     dump_datas: function() {
-      var datas = {};
-      if (this.options.datas) {
-        for (var k in this.options.datas) {
+      var datas = {}, d;
+      if (d = this.datas()) {
+        for (var k in d) {
           var elem = $('#' + k, this.body);
           if (elem.attr('type') === 'checkbox')
             datas[k] = !!elem.is(':checked');
@@ -181,28 +201,22 @@ var Node = classify('Node', {
   },
   before: {
     drawed: function() {
-      var p = this.position();
-      var z = this.zIndex() + 1;
-      var t = new Fashion.Text({
-        anchor: 'left',
-        position: {
-          x: p.x + Node.header.offset.x,
-          y: p.y + Node.header.offset.y
-        },
+      var t = new Text(this, {
         text: this.options.type,
-        zIndex: z,
+        color: this.options.color || Node.style.color,
+        offset: {
+          x: Node.header.offset.x,
+          y: Node.header.offset.y
+        },
         fontFamily: Node.header.fontFamily,
-        fontSize: Node.header.fontSize,
+        fontSize:   Node.header.fontSize,
+        through_event: 'parent'
       });
-      t.style({fill: _fashion_fill(this.options.color || Node.style.color)});
-      this.stage.d.draw(t);
-      this.texts.push(t);
+      this.children.push(t);
+      if (this.options.buttons) this.draw_buttons();
     },
     erase: function() {
       this.body.remove();
-      for (var i=0, l=this.texts.length; i<l; i++) {
-        this.stage.d.erase(this.texts[i]);
-      }
     }
   },
   after: {
@@ -214,34 +228,18 @@ var Node = classify('Node', {
           left:     window_pos.left + pos.x + Node.padding,
           top:      window_pos.top  + pos.y + Node.header.height + Node.padding
         });
-        var z = this.zIndex() + 1;
-        for (var i=0, l=this.texts.length; i<l; i++) {
-          var t = this.texts[i];
-          t.position({
-            x: pos.x + Node.header.offset.x,
-            y: pos.y + Node.header.offset.y
-          });
-          t.zIndex(z);
-        }
       }
     },
     select: function() {
       this.body.hide();
-      var z = this.zIndex() + 1;
-      for (var i=0, l=this.texts.length; i<l; i++) {
-        var t = this.texts[i];
-        t.zIndex(z);
-      }
       for (var n in this.points) {
-        var p = this.points[n];
-        p.on_parent_select();
+        this.points[n].on_parent_select();
       }
     },
     unselect: function() {
       this.body.show();
       for (var n in this.points) {
-        var p = this.points[n];
-        p.on_parent_unselect();
+        this.points[n].on_parent_unselect();
       }
     }
   }

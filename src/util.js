@@ -1,16 +1,46 @@
 include("extend_classify.js");
 
+function _map(fn, arr) {
+  if (typeof arr.map == 'function') return arr.map(fn);
+  else {
+    for (var i=0, l=arr.length, rt=[]; i<l; i++) {
+      var itm = fn(arr[i], i);
+      rt.push(itm);
+    }
+    return rt;
+  }
+}
+
 function _clip(val, max, min) {
   return (val < min) ? min : (max < val) ? max : val;
 }
 
-function _rand_color() {
-  var c = [];
-  for (var i=3; 0<i; i--) {
-    c.push('0123456789abcdef'[Math.floor(Math.random() * 16)]);
+function _fashion_color(c) {
+  return  ((c instanceof Fashion.Color) ? c :
+           (typeof c == 'string') ? new Fashion.Color(c) :
+           null);
+}
+
+function _fashion_fill(c) {
+  return ((c instanceof Fashion.FloodFill) ? c :
+          (c = _fashion_color(c)) ? new Fashion.FloodFill(c) :
+          null);
+}
+
+function _convert_fashion(def) {
+  if (!(typeof def == 'object' && def.constructor == Object)) return def;
+  var rt = {};
+  for (var i in def) {
+    if (i === 'color') {
+      rt[i] = _fashion_color(def[i]);
+    } else if (i === 'fill') {
+      rt[i] = _fashion_fill(def[i]);
+    } else {
+      rt[i] = _convert_fashion(def[i]);
+    }
   }
-  return new Fashion.Color('#'+c.join(''));
-};
+  return rt;
+}
 
 var SortedList = classify('SortedList', {
   static: {

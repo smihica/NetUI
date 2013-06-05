@@ -24,14 +24,11 @@ var Pipe = classify('Pipe', {
   },
   property: {
     parents: [],
-    options: null
   },
   method: {
     init: function(parent, options) {
       this.parents[0] = parent;
       this.parents[1] = null;
-      this.options = options;
-      this.style = this.options.style;
       this.__super__().init.apply(this, arguments);
     },
     make_instance: function(parent, options) {

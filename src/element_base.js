@@ -4,18 +4,21 @@ var ElementBase = classify('ElementBase', {
     stage:     null,
     parent:    null,
     style:     null,
+    options:   null,
     selecting: false,
     children:  [],
   },
   method: {
-    init: function(parent, shape) {
+    init: function(parent, options) {
       this.parent = parent;
       this.stage = parent.stage;
-      this.d = this.make_instance(parent, shape);
+      this.options = options || {};
+      this.style = ((options && options.style) || {});
+      this.d = this.make_instance(parent, options);
       this.parent_changed();
       this.stage.draw(this);
     },
-    make_instance: function(parent, shape) {
+    make_instance: function(parent, options) {
       return null;
     },
     get_style: function(mode) {
