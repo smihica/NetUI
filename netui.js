@@ -874,10 +874,7 @@ var Button = classify('Button', {
       if (this.options.onclick) this.options.onclick(this.parent, e);
     }
   }
-});
-
-Button.new_button('plus', 'plus_icon.png');
-Button.new_button('setting', 'setting_icon.png');/** @} */
+});/** @} */
 /** @file node.js { */
 var Node = classify('Node', {
   parent: ElementBase,
@@ -967,7 +964,10 @@ var Node = classify('Node', {
       this.body.hide();
       this.body_size = { x: w, y: h };
       this.body.mouseup(function(e){ self.body_mouseup(e); });
-      if (options.datas) this.datas(options.datas);
+      if (options.datas) {
+        this.datas(options.datas);
+        this.load_datas();
+      }
     },
     body_append: function(selector, jq_elem) {
       if (!selector && !jq_elem) return;
@@ -1034,6 +1034,7 @@ var Node = classify('Node', {
       }
     },
     load_datas: function(datas) {
+      if (!datas) datas = this.datas();
       for (var k in datas) {
         var v = datas[k];
         var elem = $('#' + k, this.body);
@@ -1045,8 +1046,8 @@ var Node = classify('Node', {
       }
     },
     dump_datas: function() {
-      var datas = {}, d;
-      if (d = this.datas()) {
+      var datas = {}, d = this.datas()
+      if (d) {
         for (var k in d) {
           var elem = $('#' + k, this.body);
           if (elem.attr('type') === 'checkbox')
@@ -1302,6 +1303,7 @@ var Stage = classify('Stage', {
       Point: Point,
       Node:  Node,
       Stage: Stage,
+      Button: Button,
 
       types: {
         pipe:  {},
@@ -1379,6 +1381,9 @@ var Stage = classify('Stage', {
           def.buttons = d.buttons;
           self.types.node[name] = def;
         })(name);
+      },
+      defineButton: function(name, icon) {
+        Button.new_button(name, icon);
       },
       createPoint: function (node, name, type, definition) {
         var d = definition;

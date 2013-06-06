@@ -86,7 +86,10 @@ var Node = classify('Node', {
       this.body.hide();
       this.body_size = { x: w, y: h };
       this.body.mouseup(function(e){ self.body_mouseup(e); });
-      if (options.datas) this.datas(options.datas);
+      if (options.datas) {
+        this.datas(options.datas);
+        this.load_datas();
+      }
     },
     body_append: function(selector, jq_elem) {
       if (!selector && !jq_elem) return;
@@ -153,6 +156,7 @@ var Node = classify('Node', {
       }
     },
     load_datas: function(datas) {
+      if (!datas) datas = this.datas();
       for (var k in datas) {
         var v = datas[k];
         var elem = $('#' + k, this.body);
@@ -164,8 +168,8 @@ var Node = classify('Node', {
       }
     },
     dump_datas: function() {
-      var datas = {}, d;
-      if (d = this.datas()) {
+      var datas = {}, d = this.datas()
+      if (d) {
         for (var k in d) {
           var elem = $('#' + k, this.body);
           if (elem.attr('type') === 'checkbox')

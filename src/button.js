@@ -61,6 +61,3 @@ var Button = classify('Button', {
     }
   }
 });
-
-Button.new_button('plus', 'plus_icon.png');
-Button.new_button('setting', 'setting_icon.png');

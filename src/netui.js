@@ -15,6 +15,7 @@
       Point: Point,
       Node:  Node,
       Stage: Stage,
+      Button: Button,
 
       types: {
         pipe:  {},
@@ -92,6 +93,9 @@
           def.buttons = d.buttons;
           self.types.node[name] = def;
         })(name);
+      },
+      defineButton: function(name, icon) {
+        Button.new_button(name, icon);
       },
       createPoint: function (node, name, type, definition) {
         var d = definition;
