@@ -723,7 +723,7 @@ var Point = classify('Point', {
     dump: function(backref_p) {
       var connections = [];
       var pts = this.connecting_points();
-      var my_idx = this.stage.get_elem_index(this, NetUI.Node);
+      var my_idx = this.stage.get_elem_index(this.parent, NetUI.Node);
       for (var i=0, l=pts.length; i<l; i++) {
         var p = pts[i];
         var node_idx = this.stage.get_elem_index(p.parent, NetUI.Node);
@@ -1046,7 +1046,7 @@ var Node = classify('Node', {
       }
     },
     dump_datas: function() {
-      var datas = {}, d = this.datas()
+      var datas = {}, d = this.datas();
       if (d) {
         for (var k in d) {
           var elem = $('#' + k, this.body);
@@ -1315,6 +1315,11 @@ var Stage = classify('Stage', {
         point: {},
         node:  {}
       },
+
+      all_defined: true,
+      defineNodeTypeAccm: 0,
+      after_defineds: [],
+
       definePipeType: function (definitions) {
         function wrap(d) {
           return d ? { fill: null, stroke: d } : null;
@@ -1338,16 +1343,24 @@ var Stage = classify('Stage', {
       },
       defineNodeType: function (definitions, onDefinitionFinished) {
         var self = this;
+        self.all_defined = false;
+        self.defineNodeTypeAccm += 1;
+        function finished() {
+          if (onDefinitionFinished) onDefinitionFinished();
+          self.defineNodeTypeAccm -= 1;
+          if (self.defineNodeTypeAccm == 0) {
+            self.fireAllDefined();
+          }
+        };
+        function notify(name) {
+          names.splice(names.indexOf(name), 1);
+          if (names.length == 0) finished();
+        };
         function wrap(d) {
           return d ? { fill:   d.fill ? d.fill : null,
                        stroke: d.stroke ? d.stroke : null } : null;
         }
         var names = [];
-        var notify = function(name) {
-          names.splice(names.indexOf(name), 1);
-          if (names.length == 0 && onDefinitionFinished)
-            onDefinitionFinished();
-        };
         for (var name in definitions) (function(name) {
           names.push(name);
           var d  = definitions[name];
@@ -1374,8 +1387,7 @@ var Stage = classify('Stage', {
               def.body = txt;
               notify(name);
             });
-          } else
-            def.body = '';
+          } else def.body = '';
           def.points = d.points;
           def.data_binds = d.data_binds;
           def.buttons = d.buttons;
@@ -1384,6 +1396,15 @@ var Stage = classify('Stage', {
       },
       defineButton: function(name, icon) {
         Button.new_button(name, icon);
+      },
+      fireAllDefined: function() {
+        this.all_defined = true;
+        var fn;
+        while(fn = this.after_defineds.shift()) fn();
+      },
+      setOnDefinedAll: function(fn) {
+        if (this.all_defined) fn();
+        else this.after_defineds.push(fn);
       },
       createPoint: function (node, name, type, definition) {
         var d = definition;
@@ -1417,12 +1438,14 @@ var Stage = classify('Stage', {
 
         var datas = {};
         for (var k in settings.data_binds) {
-          var v = settings.data_binds[k];
-          if (d && d.datas && d.datas.hasOwnProperty(k)) {
-            v = d.datas[k];
-          }
-          datas[k] = v;
+          datas[k] = settings.data_binds[k];
         }
+        if (d && d.datas) {
+          for (var k in d.datas) {
+            datas[k] = d.datas[k];
+          }
+        }
+
         var buttons = {};
         for (var k in settings.buttons) {
           var fn_str = settings.buttons[k];
@@ -1484,14 +1507,16 @@ var Stage = classify('Stage', {
         }
         return JSON.stringify(rt);
       },
-      load: function(stage, data, with_clear) {
+      load: function(stage, data, with_clear, preserve_type) {
         if (with_clear) {
           stage.clear();
-          this.type_definitions = {
-            pipe:  {},
-            point: {},
-            node:  {}
-          };
+          if (!preserve_type) {
+            this.type_definitions = {
+              pipe:  {},
+              point: {},
+              node:  {}
+            };
+          }
         }
         var data = JSON.parse(data);
         function define_types() {
@@ -1528,7 +1553,8 @@ var Stage = classify('Stage', {
             });
           }
         }
-        define_types();
+        if (preserve_type) create_nodes();
+        else define_types();
       }
     }
   });

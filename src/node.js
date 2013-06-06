@@ -168,7 +168,7 @@ var Node = classify('Node', {
       }
     },
     dump_datas: function() {
-      var datas = {}, d = this.datas()
+      var datas = {}, d = this.datas();
       if (d) {
         for (var k in d) {
           var elem = $('#' + k, this.body);

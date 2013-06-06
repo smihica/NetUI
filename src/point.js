@@ -138,7 +138,7 @@ var Point = classify('Point', {
     dump: function(backref_p) {
       var connections = [];
       var pts = this.connecting_points();
-      var my_idx = this.stage.get_elem_index(this, NetUI.Node);
+      var my_idx = this.stage.get_elem_index(this.parent, NetUI.Node);
       for (var i=0, l=pts.length; i<l; i++) {
         var p = pts[i];
         var node_idx = this.stage.get_elem_index(p.parent, NetUI.Node);
