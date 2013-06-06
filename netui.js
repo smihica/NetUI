@@ -756,12 +756,14 @@ var Point = classify('Point', {
         x: ((p.x - pp.x) / ps.x),
         y: ((p.y - (pp.y + Node.header.height)) / (ps.y - Node.header.height))
       };
-      var a, o;
-      if (0.8 < offset.x) {
+      var a, o, th = 0.2;
+      if (offset.x < th) { // x has higher priority than y.
+        a = 'left';   o = { x: 8,  y: 3.5 };
+      } else if ((1.0-th) < offset.x) {
         a = 'right';  o = { x: -7, y: 3.5 };
-      } else if (offset.y < 0.3) {
+      } else if (offset.y < th) {
         a = 'center'; o = { x: 0,  y: 18 };
-      } else if (0.7 < offset.y) {
+      } else if ((1.0-th) < offset.y) {
         a = 'center'; o = { x: 0,  y: -10 };
       } else {
         a = 'left';   o = { x: 8,  y: 3.5 };
@@ -967,6 +969,12 @@ var Node = classify('Node', {
       this.body.mouseup(function(e){ self.body_mouseup(e); });
       if (options.datas) this.datas(options.datas);
     },
+    body_append: function(selector, jq_elem) {
+      if (!selector && !jq_elem) return;
+      if (!jq_elem) this.body.append(selector);
+      else $(selector, this.body).append(jq_elem);
+      this.body_changed();
+    },
     click: function(e) {
       this.toggle_select();
     },
@@ -1067,6 +1075,7 @@ var Node = classify('Node', {
     dump: function() {
       var points = this.dump_points(false);
       var datas  = this.dump_datas();
+      var body = this.body.html();
       return {
         selecting:  this.selecting,
         type:       this.options.type,
@@ -1074,7 +1083,8 @@ var Node = classify('Node', {
         size:       this.options.size,
         zIndex:     this.zIndex(),
         points:     points,
-        datas:      datas
+        datas:      datas,
+        body:       (body !== NetUI.types.node[this.options.type].body) ? body : void(0)
       };
     }
   },
@@ -1339,6 +1349,12 @@ var Stage = classify('Stage', {
         for (var name in definitions) (function(name) {
           names.push(name);
           var d  = definitions[name];
+          if (d.buttons) {
+            for (var k in d.buttons) {
+              var fn = d.buttons[k];
+              d.buttons[k] = fn.toString();
+            }
+          }
           self.type_definitions.node[name] = d;
           var def = {};
           var style = _convert_fashion(d.style);
@@ -1356,9 +1372,8 @@ var Stage = classify('Stage', {
               def.body = txt;
               notify(name);
             });
-          } else {
+          } else
             def.body = '';
-          }
           def.points = d.points;
           def.data_binds = d.data_binds;
           def.buttons = d.buttons;
@@ -1403,6 +1418,11 @@ var Stage = classify('Stage', {
           }
           datas[k] = v;
         }
+        var buttons = {};
+        for (var k in settings.buttons) {
+          var fn_str = settings.buttons[k];
+          buttons[k] = eval("("+fn_str+")");
+        }
 
         var node = new this.Node({
           stage: stage,
@@ -1411,7 +1431,7 @@ var Stage = classify('Stage', {
           position: (d && d.position) || { x: (vp.x / 2) - 50, y: (vp.y / 2) - 50},
           size:     (d && d.size)     || 'auto',
           zIndex:   (d && d.zIndex)   || stage.d.getMaxDepth() + 1,
-          body:     settings.body,
+          body:     (d && d.body && $(d.body)) || settings.body,
           datas:    datas,
           padding:  25,
           style:    settings.style,
@@ -1420,7 +1440,7 @@ var Stage = classify('Stage', {
                      (d && d.style && d.style.color) ||
                      (settings.style && settings.style.color) ||
                      settings.color),
-          buttons:  settings.buttons
+          buttons:  buttons
         });
         if (d && d.points) {
           for (var name in d.points) {
@@ -1499,6 +1519,7 @@ var Stage = classify('Stage', {
               selecting: node.selecting,
               points:    node.points,
               datas:     node.datas,
+              body:      node.body
             });
           }
         }

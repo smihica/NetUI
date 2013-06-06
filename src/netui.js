@@ -62,6 +62,12 @@
         for (var name in definitions) (function(name) {
           names.push(name);
           var d  = definitions[name];
+          if (d.buttons) {
+            for (var k in d.buttons) {
+              var fn = d.buttons[k];
+              d.buttons[k] = fn.toString();
+            }
+          }
           self.type_definitions.node[name] = d;
           var def = {};
           var style = _convert_fashion(d.style);
@@ -79,9 +85,8 @@
               def.body = txt;
               notify(name);
             });
-          } else {
+          } else
             def.body = '';
-          }
           def.points = d.points;
           def.data_binds = d.data_binds;
           def.buttons = d.buttons;
@@ -126,6 +131,11 @@
           }
           datas[k] = v;
         }
+        var buttons = {};
+        for (var k in settings.buttons) {
+          var fn_str = settings.buttons[k];
+          buttons[k] = eval("("+fn_str+")");
+        }
 
         var node = new this.Node({
           stage: stage,
@@ -134,7 +144,7 @@
           position: (d && d.position) || { x: (vp.x / 2) - 50, y: (vp.y / 2) - 50},
           size:     (d && d.size)     || 'auto',
           zIndex:   (d && d.zIndex)   || stage.d.getMaxDepth() + 1,
-          body:     settings.body,
+          body:     (d && d.body && $(d.body)) || settings.body,
           datas:    datas,
           padding:  25,
           style:    settings.style,
@@ -143,7 +153,7 @@
                      (d && d.style && d.style.color) ||
                      (settings.style && settings.style.color) ||
                      settings.color),
-          buttons:  settings.buttons
+          buttons:  buttons
         });
         if (d && d.points) {
           for (var name in d.points) {
@@ -222,6 +232,7 @@
               selecting: node.selecting,
               points:    node.points,
               datas:     node.datas,
+              body:      node.body
             });
           }
         }

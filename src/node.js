@@ -88,6 +88,12 @@ var Node = classify('Node', {
       this.body.mouseup(function(e){ self.body_mouseup(e); });
       if (options.datas) this.datas(options.datas);
     },
+    body_append: function(selector, jq_elem) {
+      if (!selector && !jq_elem) return;
+      if (!jq_elem) this.body.append(selector);
+      else $(selector, this.body).append(jq_elem);
+      this.body_changed();
+    },
     click: function(e) {
       this.toggle_select();
     },
@@ -188,6 +194,7 @@ var Node = classify('Node', {
     dump: function() {
       var points = this.dump_points(false);
       var datas  = this.dump_datas();
+      var body = this.body.html();
       return {
         selecting:  this.selecting,
         type:       this.options.type,
@@ -195,7 +202,8 @@ var Node = classify('Node', {
         size:       this.options.size,
         zIndex:     this.zIndex(),
         points:     points,
-        datas:      datas
+        datas:      datas,
+        body:       (body !== NetUI.types.node[this.options.type].body) ? body : void(0)
       };
     }
   },

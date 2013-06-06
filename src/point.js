@@ -171,12 +171,14 @@ var Point = classify('Point', {
         x: ((p.x - pp.x) / ps.x),
         y: ((p.y - (pp.y + Node.header.height)) / (ps.y - Node.header.height))
       };
-      var a, o;
-      if (0.8 < offset.x) {
+      var a, o, th = 0.2;
+      if (offset.x < th) { // x has higher priority than y.
+        a = 'left';   o = { x: 8,  y: 3.5 };
+      } else if ((1.0-th) < offset.x) {
         a = 'right';  o = { x: -7, y: 3.5 };
-      } else if (offset.y < 0.3) {
+      } else if (offset.y < th) {
         a = 'center'; o = { x: 0,  y: 18 };
-      } else if (0.7 < offset.y) {
+      } else if ((1.0-th) < offset.y) {
         a = 'center'; o = { x: 0,  y: -10 };
       } else {
         a = 'left';   o = { x: 8,  y: 3.5 };
