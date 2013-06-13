@@ -82,6 +82,7 @@
               d.buttons[k] = fn.toString();
             }
           }
+          if (d.onload) d.onload = d.onload.toString();
           self.type_definitions.node[name] = d;
           var def = {};
           var style = _convert_fashion(d.style);
@@ -103,6 +104,7 @@
           def.points = d.points;
           def.data_binds = d.data_binds;
           def.buttons = d.buttons;
+          def.onload = d.onload;
           self.types.node[name] = def;
         })(name);
       },
@@ -164,6 +166,11 @@
           buttons[k] = eval("("+fn_str+")");
         }
 
+        var onload = function(){};
+        if (settings.onload) {
+          onload = eval("("+settings.onload+")");
+        }
+
         var node = new this.Node({
           stage: stage,
           unbind: function(itm) {}
@@ -180,7 +187,8 @@
                      (d && d.style && d.style.color) ||
                      (settings.style && settings.style.color) ||
                      settings.color),
-          buttons:  buttons
+          buttons:  buttons,
+          onload:   onload
         });
         if (d && d.points) {
           for (var name in d.points) {

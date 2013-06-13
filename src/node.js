@@ -33,6 +33,8 @@ var Node = classify('Node', {
   method: {
     init: function() {
       this.__super__().init.apply(this, arguments);
+      if (this.options.onload)
+        this.options.onload.call(this, this);
     },
     add_point: function(name, options) {
       var p = new Point(this, options, name);
