@@ -720,6 +720,12 @@ var Point = classify('Point', {
       }
       return rt;
     },
+    dump_data_network: function(backref_p) {
+      var d = this.dump(backref_p);
+      return {
+        type: d.type, connections: d.connections
+      };
+    },
     dump: function(backref_p) {
       var connections = [];
       var pts = this.connecting_points();
@@ -1065,10 +1071,19 @@ var Node = classify('Node', {
       }
       return points;
     },
+    dump_data_network_points: function(backref_p) {
+      var points = {};
+      for (var n in this.points) {
+        var p = this.points[n];
+        points[n] = p.dump_data_network(backref_p);
+      }
+      return points;
+    },
     dump_data_network: function() {
-      var points = this.dump_points(true);
+      var points = this.dump_data_network_points(true);
       var datas  = this.dump_datas();
       return {
+        type:   this.options.type,
         points: points,
         datas:  datas
       };
@@ -1171,6 +1186,18 @@ var Stage = classify('Stage', {
       });
       this.selected_elems = new UniqueList();
     },
+    hide: function() {
+      this.html.hide();
+      for (var i=this.elems.length-1; -1<i; i--) {
+        if (this.elems[i].body) this.elems[i].body.hide();
+      }
+    },
+    show: function() {
+      this.html.show();
+      for (var i=this.elems.length-1; -1<i; i--) {
+        if (this.elems[i].body) this.elems[i].body.show();
+      }
+    },
     draw: function(elem) {
       this.d.draw(elem.d);
       this.elems.push(elem);
@@ -1268,7 +1295,7 @@ var Stage = classify('Stage', {
     draw_background: function() {
       var span = 20;
       var s = this.size;
-      var c = new Fashion.Color("#000");
+      var c = _fashion_color("#FFF");
       var w = 0.5;
       var pat = [1, 4];
       for (var l = span; l < s.x; l+=span) {

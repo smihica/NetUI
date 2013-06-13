@@ -34,6 +34,18 @@ var Stage = classify('Stage', {
       });
       this.selected_elems = new UniqueList();
     },
+    hide: function() {
+      this.html.hide();
+      for (var i=this.elems.length-1; -1<i; i--) {
+        if (this.elems[i].body) this.elems[i].body.hide();
+      }
+    },
+    show: function() {
+      this.html.show();
+      for (var i=this.elems.length-1; -1<i; i--) {
+        if (this.elems[i].body) this.elems[i].body.show();
+      }
+    },
     draw: function(elem) {
       this.d.draw(elem.d);
       this.elems.push(elem);
@@ -131,7 +143,7 @@ var Stage = classify('Stage', {
     draw_background: function() {
       var span = 20;
       var s = this.size;
-      var c = new Fashion.Color("#000");
+      var c = _fashion_color("#FFF");
       var w = 0.5;
       var pat = [1, 4];
       for (var l = span; l < s.x; l+=span) {

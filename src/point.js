@@ -135,6 +135,12 @@ var Point = classify('Point', {
       }
       return rt;
     },
+    dump_data_network: function(backref_p) {
+      var d = this.dump(backref_p);
+      return {
+        type: d.type, connections: d.connections
+      };
+    },
     dump: function(backref_p) {
       var connections = [];
       var pts = this.connecting_points();

@@ -187,10 +187,19 @@ var Node = classify('Node', {
       }
       return points;
     },
+    dump_data_network_points: function(backref_p) {
+      var points = {};
+      for (var n in this.points) {
+        var p = this.points[n];
+        points[n] = p.dump_data_network(backref_p);
+      }
+      return points;
+    },
     dump_data_network: function() {
-      var points = this.dump_points(true);
+      var points = this.dump_data_network_points(true);
       var datas  = this.dump_datas();
       return {
+        type:   this.options.type,
         points: points,
         datas:  datas
       };
