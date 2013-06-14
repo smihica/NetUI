@@ -257,6 +257,7 @@ var UniqueList = classify("UniqueList", {
 var ElementBase = classify('ElementBase', {
   property: {
     d:         null,
+    id:        null,
     stage:     null,
     parent:    null,
     style:     null,
@@ -273,6 +274,7 @@ var ElementBase = classify('ElementBase', {
       this.d = this.make_instance(parent, options);
       this.parent_changed();
       this.stage.draw(this);
+      this.id = this.d.id;
     },
     make_instance: function(parent, options) {
       return null;
@@ -625,8 +627,7 @@ var Point = classify('Point', {
       this.name = name;
       this.offset({ x: options.position.offset.x, y: options.position.offset.y });
       this.__super__().init.apply(this, arguments);
-      var id = this.d.id;
-      Point.points[id] = this;
+      Point.points[this.id] = this;
     },
     make_instance: function(parent, options) {
       var d =  new Fashion.Circle({
@@ -917,6 +918,7 @@ var Node = classify('Node', {
   method: {
     init: function() {
       this.__super__().init.apply(this, arguments);
+      this.body.attr({id: 'node_'+this.id});
       if (this.options.onload)
         this.options.onload.call(this, this);
     },
@@ -954,7 +956,7 @@ var Node = classify('Node', {
       var self = this;
       var pos = options.position;
       var window_pos = this.stage.html.position();
-      var body = $('<div/>', {id: "body_" + d.id});
+      var body = $('<div/>');
       body.html(options.body);
       body.css({
         position: 'absolute',
@@ -1046,7 +1048,8 @@ var Node = classify('Node', {
       for (var k in datas) {
         var v = datas[k];
         var elem = $('#' + k, this.body);
-        if (elem.attr('type') === 'checkbox') {
+        var type = elem.attr('type');
+        if (type === 'checkbox' || type === 'radio') {
           elem.attr('checked', !!v);
         } else {
           elem.val(v);
@@ -1058,7 +1061,8 @@ var Node = classify('Node', {
       if (d) {
         for (var k in d) {
           var elem = $('#' + k, this.body);
-          if (elem.attr('type') === 'checkbox')
+          var type = elem.attr('type');
+          if (type === 'checkbox' || type === 'radio')
             datas[k] = !!elem.is(':checked');
           else datas[k] = elem.val();
         }

@@ -40,8 +40,7 @@ var Point = classify('Point', {
       this.name = name;
       this.offset({ x: options.position.offset.x, y: options.position.offset.y });
       this.__super__().init.apply(this, arguments);
-      var id = this.d.id;
-      Point.points[id] = this;
+      Point.points[this.id] = this;
     },
     make_instance: function(parent, options) {
       var d =  new Fashion.Circle({

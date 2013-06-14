@@ -1,6 +1,7 @@
 var ElementBase = classify('ElementBase', {
   property: {
     d:         null,
+    id:        null,
     stage:     null,
     parent:    null,
     style:     null,
@@ -17,6 +18,7 @@ var ElementBase = classify('ElementBase', {
       this.d = this.make_instance(parent, options);
       this.parent_changed();
       this.stage.draw(this);
+      this.id = this.d.id;
     },
     make_instance: function(parent, options) {
       return null;
